@@ -14,7 +14,8 @@
 #include <MiniGrafx.h>
 #include <ILI9341_SPI.h>
 #include <simpleDSTadjust.h>
-//#include <ArduinoJson.h> //FixMe: Va in errore la compilazione
+#undef min // This is essential to avoid the compilation error "expected unqualified-id before '(' token" when including the ArduinoJson library
+#include <ArduinoJson.h>
 #include "ArialRounded.h"
 #include "TouchControllerWS.h"
 #include "icons.h"
@@ -22,7 +23,7 @@
 // Include the configuration file
 #include "settings.h"
 
-// Define the pins used by the system 
+// Define the pins used by the system
 #define TFT_DC D2
 #define TFT_CS D1
 #define TFT_LED D8
@@ -83,10 +84,10 @@ TouchControllerWS touchController(&ts);
 void calibrationCallback(int16_t x, int16_t y);
 CalibrationCallback calibration = &calibrationCallback;
 
-// Initialize the controller for time synchronization 
+// Initialize the controller for time synchronization
 simpleDSTadjust dstAdjusted(StartRule, EndRule);
 
-// Setup function, performed only once at startup 
+// Setup function, performed only once at startup
 void setup() {
 
   // If debug is true, start the serial communication and print a message
@@ -141,7 +142,7 @@ void setup() {
   currentScreen = 0;
 }
 
-// Loop function, performed cyclically as long as the device is active 
+// Loop function, performed cyclically as long as the device is active
 void loop() {
 
   // If the connection is lost, reconnect
@@ -155,7 +156,7 @@ void loop() {
   // Create the updated header
   drawHeader();
 
-  // Shows the screen we need based on the currentScreen variable 
+  // Shows the screen we need based on the currentScreen variable
   if (currentScreen == 0) {
     drawHome();
   }
@@ -181,7 +182,7 @@ void loop() {
     lastTouch = millis();
   }
 
-  // If the screen has been on for too long without touching, turn it off 
+  // If the screen has been on for too long without touching, turn it off
   if ((millis() > (lastTouch + screenTimeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
     digitalWrite(TFT_LED, LOW);
   }
@@ -189,11 +190,11 @@ void loop() {
   // Write the created data on the screen
   gfx.commit();
 
-  // Add a small delay to allow the MQTT loop to run correctly 
+  // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
 }
 
-// Callback function executed whenever an MQTT message is received 
+// Callback function executed whenever an MQTT message is received
 void callback(char* topic, byte* payload, unsigned int length) { //FixMe -- Start here
 
   // Print a message if debug is true
@@ -203,7 +204,7 @@ void callback(char* topic, byte* payload, unsigned int length) { //FixMe -- Star
   }
 } //FixMe: -- End here
 
-// Functions to calibrate the touchscreen at first power up 
+// Functions to calibrate the touchscreen at first power up
 void calibrateTouchScreen() {
   touchController.startCalibration(&calibration);
   while (!touchController.isCalibrationFinished()) {
@@ -222,7 +223,7 @@ void calibrationCallback(int16_t x, int16_t y) {
   gfx.fillCircle(x, y, 10);
 }
 
-// Function to show the loading screen, with the logo, a message provided and the progress bar 
+// Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
   // Set the background and center-aligned Arial 14 font
@@ -252,7 +253,7 @@ void drawProgress(uint8_t percentage, String text) {
   gfx.commit();
 }
 
-// Function to generate the header bar with time and signal quality 
+// Function to generate the header bar with time and signal quality
 void drawHeader() {
 
   // Set the background and left-aligned Arial 10 font
@@ -311,7 +312,7 @@ void drawGrid() {
     gfx.drawVerticalLine(startX, SCREEN_HEADER, GRID_HEIGHT);
   }
 
-  // Create the rows 
+  // Create the rows
   int startY = SCREEN_HEADER;
   while (true) {
     startY = startY + cellHeight;
@@ -331,7 +332,7 @@ void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0)
   int minY = cellHeight * (row - 1) + SCREEN_HEADER;
   int maxY = minY + cellHeight;
 
-  // Calculate the center of the cell 
+  // Calculate the center of the cell
   int centerX = cellWidth / 2 + minX;
   int centerY = cellHeight / 2 + minY;
 
@@ -349,7 +350,7 @@ void updateCell(int row, int col, int imgNum) {
   int minY = cellHeight * (row - 1) + SCREEN_HEADER;
   int maxY = minY + cellHeight;
 
-  // Calculate the center of the cell 
+  // Calculate the center of the cell
   int centerX = cellWidth / 2 + minX;
   int centerY = cellHeight / 2 + minY;
 
@@ -358,7 +359,7 @@ void updateCell(int row, int col, int imgNum) {
   gfx.drawXbm(centerX - (iconsSize / 2), centerY - (iconsSize / 2), iconsSize, iconsSize, icons[imgNum]);
 }
 
-// Function to show the main screen with the grid and icons of the different cells 
+// Function to show the main screen with the grid and icons of the different cells
 void drawHome() {
   drawGrid();
   updateCell(1, 1, 0);
@@ -414,9 +415,9 @@ int calculateTouchedCell(int x, int y) {
   return cellNumber;
 }
 
-// Function to perform an action based on the cell touched and the current screen 
+// Function to perform an action based on the cell touched and the current screen
 void executeCellAction(int cellNumber) {
-  
+
   // If the current screen is the home screen, send the status request on the topic associated with the cell and print a message if debug is true
   if (currentScreen == 0) {
     const char* topic = topics[cellNumber - 1];
@@ -448,7 +449,7 @@ void reconnect() {
     }
   }
 
-  // If the wifi is connected, but the MQTT broker is disconnected, reconnect and subscribe to the topics showing it on the screen, and print a message if the debug is true 
+  // If the wifi is connected, but the MQTT broker is disconnected, reconnect and subscribe to the topics showing it on the screen, and print a message if the debug is true
   if ((WiFi.status() == WL_CONNECTED) && (!client.connected())) {
     char mqttClientID[sizeof(DEVICE) + sizeof(CLIENTID) + 3];
     strcpy(mqttClientID, DEVICE); strcat(mqttClientID, CLIENTID);
