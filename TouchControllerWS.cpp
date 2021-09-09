@@ -7,7 +7,6 @@ TouchControllerWS::TouchControllerWS(XPT2046_Touchscreen *touchScreen) {
 bool TouchControllerWS::loadCalibration() {
   // always use this to "mount" the filesystem
   bool result = SPIFFS.begin();
-  Serial.println("SPIFFS opened: " + result);
 
   // this opens the file "f.txt" in read-mode
   File f = SPIFFS.open("/calibration.txt", "r");

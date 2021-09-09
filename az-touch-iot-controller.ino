@@ -75,7 +75,7 @@ struct Config {
   int port;
 };
 Config config;
-const char *filename = "/config.txt";
+const char* filename = "/config.txt";
 
 // This line is needed to avoid the compile error for callback function not (yet) defined
 extern void callback(char* topic, byte* payload, unsigned int length);
@@ -123,52 +123,67 @@ void setup() {
     Serial.println("Touch initialized");
   }
 
-  // Start the wifi and call the wifi connection and MQTT connection function
-  WiFi.config(ip, gateway, subnet, dns);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  reconnect();
-
   // Load the flash file system and print a message if debug is true
   bool isFSMounted = SPIFFS.begin();
   if (!isFSMounted) {
-    drawProgress(50,"Formatting file system");
+    drawProgress(50, "Formatting file system");
     SPIFFS.format();
-    drawProgress(100,"Formatting done");
+    drawProgress(100, "Formatting done");
   }
   if (debug) {
     Serial.println("SPIFFS file system loaded");
   }
+
+  // Start reading the SD card and print a message if debug is true
+  int i = 0;
+  while (!SD.begin(SD_CS)) {
+    if (i > 80) {
+      i = 0;
+    }
+    drawProgress(i, "Loading SD card");
+    i += 10;
+    delay(500);
+  }
+  if (debug) {
+    Serial.println("SD card loaded");
+  }
+
+  // If a configuration file exists on the card, copy it to SPIFFS memory and print a message if debug is true
+  File sourceFile = SD.open(filename);
+  if (sourceFile) {
+    SPIFFS.remove(filename);
+    File destFile = SPIFFS.open(filename, "w");
+    static uint8_t buf[512];
+    int i = 0;
+    while (sourceFile.read(buf, 512)) {
+      destFile.write(buf, 512);
+      if (i > 80) {
+        i = 0;
+      }
+      drawProgress(i, "Copying new configuration");
+      i += 10;
+      delay(500);
+    }
+    destFile.close();
+    sourceFile.close();
+    if (debug) {
+      Serial.println("Configuration copied to SPIFFS memory");
+    }
+  }
+
+  // Load the configuration
+  loadConfiguration();
+
+  // Start the wifi and call the wifi connection and MQTT connection function
+  WiFi.config(ip, gateway, subnet, dns);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  reconnect();
 
   // Load the touchscreen calibration
   boolean isCalibrationAvailable = touchController.loadCalibration();
   if (!isCalibrationAvailable) {
     calibrateTouchScreen();
   }
-
-  // Start reading the SD card and print a message if debug is true
-  int i = 0;
-  while (!SD.begin(SD_CS)) {
-    delay(500);
-    if (i > 80) {
-      i=0;
-    }
-    drawProgress(i,"Loading SD card");
-    i+=10;
-  }
-  if (debug) {
-    Serial.println("SD card loaded");
-  }
-
-  // Test loading config
-  File file = SD.open(filename);
-  StaticJsonDocument<512> doc;
-  DeserializationError error = deserializeJson(doc, file);
-  config.port = doc["port"] | 2731;
-  strlcpy(config.hostname,
-          doc["hostname"] | "example.com",
-          sizeof(config.hostname));
-  file.close();
-  Serial.println(config.port);
 
   // Synchronize time with NTP server
   configTime(UTC_OFFSET * 3600, 0, NTP_SERVERS);
@@ -286,6 +301,35 @@ void drawProgress(uint8_t percentage, String text) {
 
   // Write the result
   gfx.commit();
+}
+
+// Function to load the configuration into the Config struct
+void loadConfiguration() {
+  
+  // Try to open the file and if it doesn't exist write it on the screen and print a message if debug is true
+  File file = SPIFFS.open(filename, "r");
+  if (!file) {
+    drawProgress(50, "Configuration file missing!");
+    if (debug) {
+      Serial.println("Configuration file missing!");
+    }
+    while(true) {} // Stay here forever
+  }
+
+  // Initialize a json document and deserialize the configuration file 
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, file);
+
+  // Write the configuration parameters into the Config struct
+  config.port = doc["port"] | 2731;
+  strlcpy(config.hostname,
+          doc["hostname"] | "example.com",
+          sizeof(config.hostname));
+  file.close();
+
+  // ONLY FOR DEBUG
+  Serial.println(config.port);
+  Serial.println(config.hostname);
 }
 
 // Function to generate the header bar with time and signal quality
@@ -472,12 +516,12 @@ void reconnect() {
   int i = 0;
   if (WiFi.status() != WL_CONNECTED) {
     while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
       if (i > 80) {
-        i=0;
+        i = 0;
       }
       drawProgress(i, "Connecting to WiFi '" + String(WIFI_SSID) + "'");
-      i+=10;
+      i += 10;
+      delay(500);
     }
     if (debug) {
       Serial.println("Connected to WiFi");
@@ -493,16 +537,16 @@ void reconnect() {
     }
     int i = 0;
     while (!client.connected()) {
-      delay(500);
       if (i > 80) {
-        i=0;
+        i = 0;
       }
-      drawProgress(i,"Connecting to MQTT '" + String(MQTT_HOST) + "'");
-      i+=10;
+      drawProgress(i, "Connecting to MQTT '" + String(MQTT_HOST) + "'");
+      i += 10;
       if (client.connect(mqttClientID, MQTT_USER, MQTT_PASS)) {
         //client.subscribe(topic-here); //FixMe
         //client.setBufferSize(512); //FixMe
       }
+      delay(500);
     }
     if (debug) {
       Serial.println("Connected to MQTT");
