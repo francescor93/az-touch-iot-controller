@@ -16,6 +16,7 @@
 #include <simpleDSTadjust.h>
 #undef min // This is essential to avoid the compilation error "expected unqualified-id before '(' token" when including the ArduinoJson library
 #include <ArduinoJson.h>
+#include <SD.h>
 #include "ArialRounded.h"
 #include "TouchControllerWS.h"
 #include "icons.h"
@@ -28,7 +29,8 @@
 #define TFT_CS D1
 #define TFT_LED D8
 #define TOUCH_CS D3
-#define TOUCH_IRQ  D4
+#define TOUCH_IRQ D4
+#define SD_CS D0
 
 // Initialize the variables for the device
 const char* DEVICE = "TouchController";
@@ -66,6 +68,14 @@ int currentScreen;
 unsigned long int lastTouch;
 int cellWidth = GRID_WIDTH / GRID_COLS;
 int cellHeight = GRID_HEIGHT / GRID_ROWS;
+
+// Initialize the struct for the configuration and define the file name
+struct Config {
+  char hostname[64];
+  int port;
+};
+Config config;
+const char *filename = "/config.txt";
 
 // This line is needed to avoid the compile error for callback function not (yet) defined
 extern void callback(char* topic, byte* payload, unsigned int length);
@@ -134,6 +144,31 @@ void setup() {
   if (!isCalibrationAvailable) {
     calibrateTouchScreen();
   }
+
+  // Start reading the SD card and print a message if debug is true
+  int i = 0;
+  while (!SD.begin(SD_CS)) {
+    delay(500);
+    if (i > 80) {
+      i=0;
+    }
+    drawProgress(i,"Loading SD card");
+    i+=10;
+  }
+  if (debug) {
+    Serial.println("SD card loaded");
+  }
+
+  // Test loading config
+  File file = SD.open(filename);
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, file);
+  config.port = doc["port"] | 2731;
+  strlcpy(config.hostname,
+          doc["hostname"] | "example.com",
+          sizeof(config.hostname));
+  file.close();
+  Serial.println(config.port);
 
   // Synchronize time with NTP server
   configTime(UTC_OFFSET * 3600, 0, NTP_SERVERS);
@@ -458,6 +493,7 @@ void reconnect() {
     }
     int i = 0;
     while (!client.connected()) {
+      delay(500);
       if (i > 80) {
         i=0;
       }
