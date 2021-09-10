@@ -70,9 +70,22 @@ int cellWidth = GRID_WIDTH / GRID_COLS;
 int cellHeight = GRID_HEIGHT / GRID_ROWS;
 
 // Initialize the struct for the configuration and define the file name
+struct Wifi {
+  char ssid[32];
+  char password[64];
+  IPAddress ip;
+  IPAddress gateway;
+  IPAddress subnet;
+  IPAddress dns;
+};
+struct Mqtt {
+  char host[32];
+  char user[64];
+  char password[64];
+};
 struct Config {
-  char hostname[64];
-  int port;
+  struct Wifi wifi;
+  struct Mqtt mqtt;
 };
 Config config;
 const char* filename = "/config.txt";
@@ -175,9 +188,9 @@ void setup() {
   loadConfiguration();
 
   // Start the wifi and call the wifi connection and MQTT connection function
-  WiFi.config(ip, gateway, subnet, dns);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  client.setServer(MQTT_HOST, 1883);
+  WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
+  WiFi.begin(config.wifi.ssid, config.wifi.password);
+  client.setServer(config.mqtt.host, 1883);
   reconnect();
 
   // Load the touchscreen calibration
@@ -306,7 +319,7 @@ void drawProgress(uint8_t percentage, String text) {
 
 // Function to load the configuration into the Config struct
 void loadConfiguration() {
-  
+
   // Try to open the file and if it doesn't exist write it on the screen and print a message if debug is true
   File file = SPIFFS.open(filename, "r");
   if (!file) {
@@ -317,20 +330,22 @@ void loadConfiguration() {
     while(true) {} // Stay here forever
   }
 
-  // Initialize a json document and deserialize the configuration file 
+  // Initialize a json document and deserialize the configuration file
   StaticJsonDocument<512> doc;
   DeserializationError error = deserializeJson(doc, file);
 
   // Write the configuration parameters into the Config struct
-  config.port = doc["port"] | 2731;
-  strlcpy(config.hostname,
-          doc["hostname"] | "example.com",
-          sizeof(config.hostname));
-  file.close();
+  strlcpy(config.wifi.ssid, doc["wifi"]["ssid"], sizeof(config.wifi.ssid));
+  strlcpy(config.wifi.password, doc["wifi"]["password"], sizeof(config.wifi.password));
+  config.wifi.ip.fromString(doc["wifi"]["ip"].as<String>());
+  config.wifi.gateway.fromString(doc["wifi"]["gateway"].as<String>());
+  config.wifi.subnet.fromString(doc["wifi"]["subnet"].as<String>());
+  config.wifi.dns.fromString(doc["wifi"]["dns"].as<String>());
+  strlcpy(config.mqtt.host, doc["mqtt"]["host"], sizeof(config.mqtt.host));
+  strlcpy(config.mqtt.user, doc["mqtt"]["user"], sizeof(config.mqtt.user));
+  strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
 
-  // ONLY FOR DEBUG
-  Serial.println(config.port);
-  Serial.println(config.hostname);
+  file.close();
 }
 
 // Function to generate the header bar with time and signal quality
@@ -520,7 +535,7 @@ void reconnect() {
       if (i > 80) {
         i = 0;
       }
-      drawProgress(i, "Connecting to WiFi '" + String(WIFI_SSID) + "'");
+      drawProgress(i, "Connecting to WiFi '" + String(config.wifi.ssid) + "'");
       i += 10;
       delay(500);
     }
@@ -541,9 +556,9 @@ void reconnect() {
       if (i > 80) {
         i = 0;
       }
-      drawProgress(i, "Connecting to MQTT '" + String(MQTT_HOST) + "'");
+      drawProgress(i, "Connecting to MQTT '" + String(config.mqtt.host) + "'");
       i += 10;
-      if (client.connect(mqttClientID, MQTT_USER, MQTT_PASS)) {
+      if (client.connect(mqttClientID, config.mqtt.user, config.mqtt.password)) {
         //client.subscribe(topic-here); //FixMe
         //client.setBufferSize(512); //FixMe
       }
