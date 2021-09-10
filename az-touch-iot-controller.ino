@@ -82,7 +82,7 @@ extern void callback(char* topic, byte* payload, unsigned int length);
 
 // Create a wifi client and bind the MQTT client
 WiFiClient wifiClient;
-PubSubClient client(MQTT_HOST, 1883, callback, wifiClient);
+PubSubClient client("127.0.0.1", 1883, callback, wifiClient); // Using a fake address, because configuration hasn't loaded yet
 
 // Initialize the LCD screen
 ILI9341_SPI tft = ILI9341_SPI(TFT_CS, TFT_DC);
@@ -177,6 +177,7 @@ void setup() {
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(ip, gateway, subnet, dns);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+  client.setServer(MQTT_HOST, 1883);
   reconnect();
 
   // Load the touchscreen calibration
