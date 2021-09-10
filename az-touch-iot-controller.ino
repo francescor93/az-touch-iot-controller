@@ -150,8 +150,12 @@ void setup() {
   // Start reading the SD card and print a message if debug is true
   int i = 0;
   while (!SD.begin(SD_CS)) {
-    if (i > 80) {
-      i = 0;
+    if (i > 100) {
+      drawProgress(i, "No SD card found");
+      if (debug) {
+        Serial.println("Cannot read SD card");
+      }
+      break;
     }
     drawProgress(i, "Loading SD card");
     i += 10;
