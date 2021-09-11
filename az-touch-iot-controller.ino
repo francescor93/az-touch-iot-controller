@@ -83,9 +83,15 @@ struct Mqtt {
   char user[64];
   char password[64];
 };
+struct Iot {
+  char name[32];
+  char icon[32];
+  char topic[64];
+};
 struct Config {
   struct Wifi wifi;
   struct Mqtt mqtt;
+  struct Iot iot[64];
 };
 Config config;
 const char* filename = "/config.txt";
@@ -335,7 +341,7 @@ void loadConfiguration() {
   }
 
   // Initialize a json document and deserialize the configuration file
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<2048> doc;
   DeserializationError error = deserializeJson(doc, file);
 
   // Write the configuration parameters into the Config struct
@@ -349,6 +355,17 @@ void loadConfiguration() {
   strlcpy(config.mqtt.user, doc["mqtt"]["user"], sizeof(config.mqtt.user));
   strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
 
+  int i = 0;
+  for (JsonObject iotObj : doc["iot"].as<JsonArray>()) {
+    Serial.println(iotObj["name"].as<char*>());
+    Iot iot;
+    strlcpy(iot.name, iotObj["name"], sizeof(iot.name));
+    strlcpy(iot.icon, iotObj["icon"], sizeof(iot.icon));
+    strlcpy(iot.topic, iotObj["topic"], sizeof(iot.topic));
+    config.iot[i] = iot; // Can I get current loop iteration index?
+    i += 1;
+  }
+  
   file.close();
 }
 
