@@ -5,6 +5,9 @@
  * Description 2
 */
 
+// Enable ArduinoJson comment support, to better understand the configuration file
+#define ARDUINOJSON_ENABLE_COMMENTS 1
+
 // Include the necessary libraries
 #include <Arduino.h>
 #include <SPI.h>
