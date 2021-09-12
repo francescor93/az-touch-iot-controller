@@ -40,12 +40,6 @@ const char* DEVICE = "TouchController";
 const char* DELIMITER = "/";
 
 // Configure the screen
-const int SCREEN_WIDTH = (isLandscape ? 320 : 240);
-const int SCREEN_HEIGHT = (isLandscape ? 240 : 320);
-const int GRID_WIDTH = SCREEN_WIDTH;
-const int GRID_HEIGHT = SCREEN_HEIGHT - SCREEN_HEADER;
-const int GRID_COLS = (isLandscape ? gridCols : gridRows);
-const int GRID_ROWS = (isLandscape ? gridRows : gridCols);
 #define HAVE_TOUCHPAD
 #define MAIN_BACKGROUND (isDarkMode ? 0 : 1)
 #define MAIN_FOREGROUND (isDarkMode ? 1 : 0)
@@ -69,8 +63,6 @@ const char* icons[] = {
 // Initialize the variables used by the sketch
 int currentScreen;
 unsigned long int lastTouch;
-int cellWidth = GRID_WIDTH / GRID_COLS;
-int cellHeight = GRID_HEIGHT / GRID_ROWS;
 
 // Initialize the struct for the configuration and define the file name
 struct Wifi {
@@ -89,14 +81,23 @@ struct Mqtt {
 struct Device {
   char id[8];
 };
+struct Grid {
+  int cols;
+  int rows;
+  int width;
+  int height;
+  int cellWidth;
+  int cellHeight;
+};
 struct Screen {
   bool landscape;
   bool darkMode;
-  int maxColsLandscape;
-  int maxRowsLandscape;
   int iconsSize;
   int timeout;
   int headerHeight;
+  int width;
+  int height;
+  struct Grid grid;
 };
 struct Iot {
   char name[32];
@@ -146,7 +147,7 @@ void setup() {
   pinMode(TFT_LED, OUTPUT);
   digitalWrite(TFT_LED, HIGH);
   gfx.init();
-  gfx.setRotation(isLandscape ? 3 : 2);
+  //gfx.setRotation(isLandscape ? 3 : 2);
   gfx.fillBuffer(MAIN_BACKGROUND);
   gfx.commit();
   if (debug) {
@@ -374,16 +375,23 @@ void loadConfiguration() {
   strlcpy(config.device.id, doc["device"]["id"], sizeof(config.device.id));
   config.screen.landscape = doc["screen"]["landscape"];
   config.screen.darkMode = doc["screen"]["darkMode"];
-  config.screen.maxColsLandscape = doc["screen"]["maxColsLandscape"];
-  config.screen.maxRowsLandscape = doc["screen"]["maxRowsLandscape"];
   config.screen.iconsSize = doc["screen"]["iconsSize"];
   config.screen.timeout = doc["screen"]["timeout"];
   config.screen.headerHeight = doc["screen"]["headerHeight"];
 
+  // According to the configuration, set the screen values 
+  config.screen.width = (config.screen.landscape ? 320 : 240);
+  config.screen.height = (config.screen.landscape ? 240 : 320);
+  config.screen.grid.width = config.screen.width;
+  config.screen.grid.height = config.screen.height - config.screen.headerHeight;
+  config.screen.grid.cols = (config.screen.landscape ? doc["screen"]["maxColsLandscape"] : doc["screen"]["maxRowsLandscape"]);
+  config.screen.grid.rows = (config.screen.landscape ? doc["screen"]["maxRowsLandscape"] : doc["screen"]["maxColsLandscape"]);
+  config.screen.grid.cellWidth = config.screen.grid.width / config.screen.grid.cols;
+  config.screen.grid.cellHeight = config.screen.grid.height / config.screen.grid.rows;
+
   // Write each IoT object in its own struct and add it to the main Config struct
   int i = 0;
   for (JsonObject iotObj : doc["iot"].as<JsonArray>()) {
-    Serial.println(iotObj["name"].as<char*>());
     Iot iot;
     strlcpy(iot.name, iotObj["name"], sizeof(iot.name));
     strlcpy(iot.icon, iotObj["icon"], sizeof(iot.icon));
@@ -442,26 +450,26 @@ void drawHeader() {
 void drawGrid() {
 
   // Create the separator between header and table
-  gfx.drawHorizontalLine(0, SCREEN_HEADER, GRID_WIDTH);
+  gfx.drawHorizontalLine(0, SCREEN_HEADER, config.screen.grid.width);
 
   // Create the columns
   int startX = 0;
   while (true) {
-    startX = startX + cellWidth;
-    if (startX > GRID_WIDTH) {
+    startX = startX + config.screen.grid.cellWidth;
+    if (startX > config.screen.grid.width) {
       break;
     }
-    gfx.drawVerticalLine(startX, SCREEN_HEADER, GRID_HEIGHT);
+    gfx.drawVerticalLine(startX, SCREEN_HEADER, config.screen.grid.height);
   }
 
   // Create the rows
   int startY = SCREEN_HEADER;
   while (true) {
-    startY = startY + cellHeight;
-    if (startY > GRID_WIDTH) {
+    startY = startY + config.screen.grid.cellHeight;
+    if (startY > config.screen.grid.width) {
       break;
     }
-    gfx.drawHorizontalLine(0, startY, GRID_WIDTH);
+    gfx.drawHorizontalLine(0, startY, config.screen.grid.width);
   }
 }
 
@@ -469,14 +477,14 @@ void drawGrid() {
 void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0) {
 
   // Get the coordinates of the cell vertices
-  int minX = cellWidth * (col - 1);
-  int maxX = minX + cellWidth;
-  int minY = cellHeight * (row - 1) + SCREEN_HEADER;
-  int maxY = minY + cellHeight;
+  int minX = config.screen.grid.cellWidth * (col - 1);
+  int maxX = minX + config.screen.grid.cellWidth;
+  int minY = config.screen.grid.cellHeight * (row - 1) + SCREEN_HEADER;
+  int maxY = minY + config.screen.grid.cellHeight;
 
   // Calculate the center of the cell
-  int centerX = cellWidth / 2 + minX;
-  int centerY = cellHeight / 2 + minY;
+  int centerX = config.screen.grid.cellWidth / 2 + minX;
+  int centerY = config.screen.grid.cellHeight / 2 + minY;
 
   // Create the text provided
   gfx.setColor(MAIN_FOREGROUND);
@@ -487,14 +495,14 @@ void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0)
 void updateCell(int row, int col, int imgNum) {
 
   // Get the coordinates of the cell vertices
-  int minX = cellWidth * (col - 1);
-  int maxX = minX + cellWidth;
-  int minY = cellHeight * (row - 1) + SCREEN_HEADER;
-  int maxY = minY + cellHeight;
+  int minX = config.screen.grid.cellWidth * (col - 1);
+  int maxX = minX + config.screen.grid.cellWidth;
+  int minY = config.screen.grid.cellHeight * (row - 1) + SCREEN_HEADER;
+  int maxY = minY + config.screen.grid.cellHeight;
 
   // Calculate the center of the cell
-  int centerX = cellWidth / 2 + minX;
-  int centerY = cellHeight / 2 + minY;
+  int centerX = config.screen.grid.cellWidth / 2 + minX;
+  int centerY = config.screen.grid.cellHeight / 2 + minY;
 
   // Create the image provided
   gfx.setColor(MAIN_FOREGROUND);
@@ -525,24 +533,24 @@ int calculateTouchedCell(int x, int y) {
   }
 
   // Create an array to get cell number quickly given row and column number
-  int cells[GRID_ROWS][GRID_COLS] = {};
+  int cells[config.screen.grid.rows][config.screen.grid.cols] = {};
   int n = 1;
-  for (int r = 0; r < GRID_ROWS; r++) {
-    for (int c = 0; c < GRID_COLS; c++) {
+  for (int r = 0; r < config.screen.grid.rows; r++) {
+    for (int c = 0; c < config.screen.grid.cols; c++) {
       cells[r][c] = n;
       n++;
     }
   }
 
   // Calculate row and column touched
-  int touchedRow = (y / cellHeight);
-  int touchedCol = (x / cellWidth);
+  int touchedRow = (y / config.screen.grid.cellHeight);
+  int touchedCol = (x / config.screen.grid.cellWidth);
 
   // If the calculated values are beyond the limits, normalize them
   if (touchedRow < 0) { touchedRow = 0; }
-  if (touchedRow > GRID_ROWS - 1) { touchedRow = GRID_ROWS - 1; }
+  if (touchedRow > config.screen.grid.rows - 1) { touchedRow = config.screen.grid.rows - 1; }
   if (touchedCol < 0) { touchedCol = 0; }
-  if (touchedCol > GRID_COLS - 1) { touchedCol = GRID_COLS - 1; }
+  if (touchedCol > config.screen.grid.cols - 1) { touchedCol = config.screen.grid.cols - 1; }
 
   // Print a message if debug is true
   if (debug) {
