@@ -147,7 +147,7 @@ void setup() {
   pinMode(TFT_LED, OUTPUT);
   digitalWrite(TFT_LED, HIGH);
   gfx.init();
-  //gfx.setRotation(isLandscape ? 3 : 2);
+  gfx.setRotation(2); // Basic orientation. It will be updated as soon as the configuration is loaded.
   gfx.fillBuffer(MAIN_BACKGROUND);
   gfx.commit();
   if (debug) {
@@ -215,6 +215,9 @@ void setup() {
   // Load the configuration
   loadConfiguration();
 
+  // Set the correct screen rotation
+  gfx.setRotation(config.screen.landscape ? 3 : 2);
+
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
   WiFi.begin(config.wifi.ssid, config.wifi.password);
@@ -275,7 +278,7 @@ void loop() {
   }
 
   // If the screen has been on for too long without touching, turn it off
-  if ((millis() > (lastTouch + screenTimeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
+  if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
     digitalWrite(TFT_LED, LOW);
   }
 
@@ -450,7 +453,7 @@ void drawHeader() {
 void drawGrid() {
 
   // Create the separator between header and table
-  gfx.drawHorizontalLine(0, SCREEN_HEADER, config.screen.grid.width);
+  gfx.drawHorizontalLine(0, config.screen.headerHeight, config.screen.grid.width);
 
   // Create the columns
   int startX = 0;
@@ -459,11 +462,11 @@ void drawGrid() {
     if (startX > config.screen.grid.width) {
       break;
     }
-    gfx.drawVerticalLine(startX, SCREEN_HEADER, config.screen.grid.height);
+    gfx.drawVerticalLine(startX, config.screen.headerHeight, config.screen.grid.height);
   }
 
   // Create the rows
-  int startY = SCREEN_HEADER;
+  int startY = config.screen.headerHeight;
   while (true) {
     startY = startY + config.screen.grid.cellHeight;
     if (startY > config.screen.grid.width) {
@@ -479,7 +482,7 @@ void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0)
   // Get the coordinates of the cell vertices
   int minX = config.screen.grid.cellWidth * (col - 1);
   int maxX = minX + config.screen.grid.cellWidth;
-  int minY = config.screen.grid.cellHeight * (row - 1) + SCREEN_HEADER;
+  int minY = config.screen.grid.cellHeight * (row - 1) + config.screen.headerHeight;
   int maxY = minY + config.screen.grid.cellHeight;
 
   // Calculate the center of the cell
@@ -497,7 +500,7 @@ void updateCell(int row, int col, int imgNum) {
   // Get the coordinates of the cell vertices
   int minX = config.screen.grid.cellWidth * (col - 1);
   int maxX = minX + config.screen.grid.cellWidth;
-  int minY = config.screen.grid.cellHeight * (row - 1) + SCREEN_HEADER;
+  int minY = config.screen.grid.cellHeight * (row - 1) + config.screen.headerHeight;
   int maxY = minY + config.screen.grid.cellHeight;
 
   // Calculate the center of the cell
@@ -506,7 +509,7 @@ void updateCell(int row, int col, int imgNum) {
 
   // Create the image provided
   gfx.setColor(MAIN_FOREGROUND);
-  gfx.drawXbm(centerX - (iconsSize / 2), centerY - (iconsSize / 2), iconsSize, iconsSize, icons[imgNum]);
+  gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, icons[imgNum]);
 }
 
 // Function to show the main screen with the grid and icons of the different cells
