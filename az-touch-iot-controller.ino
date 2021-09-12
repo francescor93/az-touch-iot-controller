@@ -89,6 +89,15 @@ struct Mqtt {
 struct Device {
   char id[8];
 };
+struct Screen {
+  bool landscape;
+  bool darkMode;
+  int maxColsLandscape;
+  int maxRowsLandscape;
+  int iconsSize;
+  int timeout;
+  int headerHeight;
+};
 struct Iot {
   char name[32];
   char icon[32];
@@ -98,6 +107,7 @@ struct Config {
   struct Wifi wifi;
   struct Mqtt mqtt;
   struct Device device;
+  struct Screen screen;
   struct Iot iot[64];
 };
 Config config;
@@ -362,6 +372,13 @@ void loadConfiguration() {
   strlcpy(config.mqtt.user, doc["mqtt"]["user"], sizeof(config.mqtt.user));
   strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
   strlcpy(config.device.id, doc["device"]["id"], sizeof(config.device.id));
+  config.screen.landscape = doc["screen"]["landscape"];
+  config.screen.darkMode = doc["screen"]["darkMode"];
+  config.screen.maxColsLandscape = doc["screen"]["maxColsLandscape"];
+  config.screen.maxRowsLandscape = doc["screen"]["maxRowsLandscape"];
+  config.screen.iconsSize = doc["screen"]["iconsSize"];
+  config.screen.timeout = doc["screen"]["timeout"];
+  config.screen.headerHeight = doc["screen"]["headerHeight"];
 
   // Write each IoT object in its own struct and add it to the main Config struct
   int i = 0;
