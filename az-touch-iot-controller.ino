@@ -86,6 +86,9 @@ struct Mqtt {
   char user[64];
   char password[64];
 };
+struct Device {
+  char id[8];
+};
 struct Iot {
   char name[32];
   char icon[32];
@@ -94,6 +97,7 @@ struct Iot {
 struct Config {
   struct Wifi wifi;
   struct Mqtt mqtt;
+  struct Device device;
   struct Iot iot[64];
 };
 Config config;
@@ -357,7 +361,9 @@ void loadConfiguration() {
   strlcpy(config.mqtt.host, doc["mqtt"]["host"], sizeof(config.mqtt.host));
   strlcpy(config.mqtt.user, doc["mqtt"]["user"], sizeof(config.mqtt.user));
   strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
+  strlcpy(config.device.id, doc["device"]["id"], sizeof(config.device.id));
 
+  // Write each IoT object in its own struct and add it to the main Config struct
   int i = 0;
   for (JsonObject iotObj : doc["iot"].as<JsonArray>()) {
     Serial.println(iotObj["name"].as<char*>());
@@ -365,7 +371,7 @@ void loadConfiguration() {
     strlcpy(iot.name, iotObj["name"], sizeof(iot.name));
     strlcpy(iot.icon, iotObj["icon"], sizeof(iot.icon));
     strlcpy(iot.topic, iotObj["topic"], sizeof(iot.topic));
-    config.iot[i] = iot; // Can I get current loop iteration index?
+    config.iot[i] = iot;
     i += 1;
   }
   
@@ -570,8 +576,8 @@ void reconnect() {
 
   // If the wifi is connected, but the MQTT broker is disconnected, reconnect and subscribe to the topics showing it on the screen, and print a message if the debug is true
   if ((WiFi.status() == WL_CONNECTED) && (!client.connected())) {
-    char mqttClientID[sizeof(DEVICE) + sizeof(CLIENTID) + 3];
-    strcpy(mqttClientID, DEVICE); strcat(mqttClientID, CLIENTID);
+    char mqttClientID[sizeof(DEVICE) + sizeof(config.device.id) + 3];
+    strcpy(mqttClientID, DEVICE); strcat(mqttClientID, config.device.id);
     if (debug) {
       Serial.print("Set MQTT client ID: "); Serial.println(mqttClientID);
     }
