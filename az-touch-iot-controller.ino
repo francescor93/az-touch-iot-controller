@@ -41,16 +41,13 @@ const char* DELIMITER = "/";
 
 // Configure the screen
 #define HAVE_TOUCHPAD
-#define MAIN_BACKGROUND (isDarkMode ? 0 : 1)
-#define MAIN_FOREGROUND (isDarkMode ? 1 : 0)
-#define SECONDARY_FOREGROUND (isDarkMode ? 2 : 3)
-#define SECONDARY_BACKGROUND (isDarkMode ? 3 : 2)
 int BITS_PER_PIXEL = 2; // 2^2 =  4 colors
 uint16_t palette[] = {
   ILI9341_BLACK, // 0
   ILI9341_WHITE, // 1
-  ILI9341_YELLOW, // 2
-  0x7E3C //3
+  ILI9341_BLUE, //2
+  ILI9341_YELLOW // 3
+  
 };
 const char* icons[] = {
   relayIcon,
@@ -89,15 +86,21 @@ struct Grid {
   int cellWidth;
   int cellHeight;
 };
+struct Colors {
+  int mainBackground;
+  int mainForeground;
+  int secondaryBackground;
+  int secondaryForeground;
+};
 struct Screen {
   bool landscape;
-  bool darkMode;
   int iconsSize;
   int timeout;
   int headerHeight;
   int width;
   int height;
   struct Grid grid;
+  struct Colors colors;
 };
 struct Iot {
   char name[32];
@@ -143,12 +146,19 @@ void setup() {
     Serial.println("Serial started");
   }
 
+  // Set default orientation and background. They will be updated as soon as the configuration is loaded.
+  config.screen.landscape = false;
+  config.screen.colors.mainBackground = 0;
+  config.screen.colors.mainForeground = 1;
+  config.screen.colors.secondaryBackground = 2;
+  config.screen.colors.secondaryForeground = 3;
+
   // Start the LCD display and print a message if debug is true
   pinMode(TFT_LED, OUTPUT);
   digitalWrite(TFT_LED, HIGH);
   gfx.init();
-  gfx.setRotation(2); // Basic orientation. It will be updated as soon as the configuration is loaded.
-  gfx.fillBuffer(MAIN_BACKGROUND);
+  gfx.setRotation(config.screen.landscape ? 3 : 2);
+  gfx.fillBuffer(config.screen.colors.mainBackground);
   gfx.commit();
   if (debug) {
     Serial.println("LCD initialized");
@@ -304,7 +314,7 @@ void calibrateTouchScreen() {
   touchController.startCalibration(&calibration);
   while (!touchController.isCalibrationFinished()) {
     gfx.fillBuffer(0);
-    gfx.setColor(SECONDARY_FOREGROUND);
+    gfx.setColor(1);
     gfx.setTextAlignment(TEXT_ALIGN_CENTER);
     gfx.drawString(120, 160, "Please calibrate\ntouch screen by\ntouch point");
     touchController.continueCalibration();
@@ -322,26 +332,26 @@ void calibrationCallback(int16_t x, int16_t y) {
 void drawProgress(uint8_t percentage, String text) {
 
   // Set the background and center-aligned Arial 14 font
-  gfx.fillBuffer(MAIN_BACKGROUND);
+  gfx.fillBuffer(config.screen.colors.mainBackground);
   gfx.setFont(ArialRoundedMTBold_14);
   gfx.setTextAlignment(TEXT_ALIGN_CENTER);
 
   // Create the logo
-  gfx.setColor(SECONDARY_FOREGROUND);
+  gfx.setColor(config.screen.colors.secondaryForeground);
   gfx.drawXbm(20, 5, 200, 80, mainLogo);
 
   // Create the url
-  gfx.setColor(MAIN_FOREGROUND);
+  gfx.setColor(config.screen.colors.mainForeground);
   gfx.drawString(120, 85, "https://www.regafamilysite.ga");
 
   // Create the text provided
-  gfx.setColor(SECONDARY_FOREGROUND);
+  gfx.setColor(config.screen.colors.secondaryForeground);
   gfx.drawString(120, 146, text);
 
   // Create the progress bar
-  gfx.setColor(MAIN_FOREGROUND);
+  gfx.setColor(config.screen.colors.mainForeground);
   gfx.drawRect(10, 168, 240 - 20, 15);
-  gfx.setColor(SECONDARY_FOREGROUND);
+  gfx.setColor(config.screen.colors.secondaryForeground);
   gfx.fillRect(12, 170, 216 * percentage / 100, 11);
 
   // Write the result
@@ -377,7 +387,6 @@ void loadConfiguration() {
   strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
   strlcpy(config.device.id, doc["device"]["id"], sizeof(config.device.id));
   config.screen.landscape = doc["screen"]["landscape"];
-  config.screen.darkMode = doc["screen"]["darkMode"];
   config.screen.iconsSize = doc["screen"]["iconsSize"];
   config.screen.timeout = doc["screen"]["timeout"];
   config.screen.headerHeight = doc["screen"]["headerHeight"];
@@ -391,6 +400,10 @@ void loadConfiguration() {
   config.screen.grid.rows = (config.screen.landscape ? doc["screen"]["maxRowsLandscape"] : doc["screen"]["maxColsLandscape"]);
   config.screen.grid.cellWidth = config.screen.grid.width / config.screen.grid.cols;
   config.screen.grid.cellHeight = config.screen.grid.height / config.screen.grid.rows;
+  config.screen.colors.mainBackground = (doc["screen"]["darkMode"] ? 0 : 1);
+  config.screen.colors.mainForeground = (doc["screen"]["darkMode"] ? 1 : 0);
+  config.screen.colors.secondaryBackground = (doc["screen"]["darkMode"] ? 2 : 3);
+  config.screen.colors.secondaryForeground = (doc["screen"]["darkMode"] ? 3 : 2);
 
   // Write each IoT object in its own struct and add it to the main Config struct
   int i = 0;
@@ -410,8 +423,8 @@ void loadConfiguration() {
 void drawHeader() {
 
   // Set the background and left-aligned Arial 10 font
-  gfx.fillBuffer(MAIN_BACKGROUND);
-  gfx.setColor(MAIN_FOREGROUND);
+  gfx.fillBuffer(config.screen.colors.mainBackground);
+  gfx.setColor(config.screen.colors.mainForeground);
   gfx.setFont(ArialMT_Plain_10);
   gfx.setTextAlignment(TEXT_ALIGN_LEFT);
 
@@ -490,7 +503,7 @@ void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0)
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
   // Create the text provided
-  gfx.setColor(MAIN_FOREGROUND);
+  gfx.setColor(config.screen.colors.mainForeground);
   gfx.setFont(ArialMT_Plain_10);
   gfx.setTextAlignment(TEXT_ALIGN_CENTER_BOTH);
   gfx.drawString(centerX + offsetX, centerY + offsetY, text);
@@ -508,7 +521,7 @@ void updateCell(int row, int col, int imgNum) {
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
   // Create the image provided
-  gfx.setColor(MAIN_FOREGROUND);
+  gfx.setColor(config.screen.colors.mainForeground);
   gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, icons[imgNum]);
 }
 
