@@ -22,7 +22,7 @@
 #include <SD.h>
 #include "ArialRounded.h"
 #include "TouchControllerWS.h"
-#include "icons.h"
+#include "icons.cpp"
 
 // Include the configuration file
 #include "settings.h"
@@ -47,18 +47,11 @@ uint16_t palette[] = {
   ILI9341_WHITE, // 1
   ILI9341_BLUE, //2
   ILI9341_YELLOW // 3
-  
-};
-const char* icons[] = {
-  relayIcon,
-  curtainIcon,
-  airconditionerIcon,
-  ledstripIcon,
-  environmentsensorIcon
 };
 
 // Initialize the variables used by the sketch
 int currentScreen;
+int currentPage;
 unsigned long int lastTouch;
 
 // Initialize the struct for the configuration and define the file name
@@ -113,6 +106,7 @@ struct Config {
   struct Device device;
   struct Screen screen;
   struct Iot iot[64];
+  int iotList;
 };
 Config config;
 const char* filename = "/config.txt";
@@ -415,6 +409,7 @@ void loadConfiguration() {
     config.iot[i] = iot;
     i += 1;
   }
+  config.iotList = i;
   
   file.close();
 }
@@ -489,8 +484,33 @@ void drawGrid() {
   }
 }
 
+// Function to get row and column starting from the cell number 
+void cellToGrid(int cellNumber, int &row, int &col) {
+  float r = (float)cellNumber / (float)config.screen.grid.cols;
+  r = r + 0.5;
+  row = (int)r;
+  col = cellNumber / row;
+}
+
+// Function to get the position of an image in the image array starting from its name
+int getImageIndex(char* name) {
+  int i = 0;
+  for (char* iconName : iconNames) {
+    if (strcmp(iconName, name) == 0) {
+      return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
 // Functions to update the contents of a cell with text or an image
-void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0) {
+void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
+
+  // Get the row and column number from the cell number 
+  int row = 0;
+  int col = 0;
+  cellToGrid(cellNumber, row, col);
 
   // Get the coordinates of the cell vertices
   int minX = config.screen.grid.cellWidth * (col - 1);
@@ -508,7 +528,12 @@ void updateCell(int row, int col, String text, int offsetX = 0, int offsetY = 0)
   gfx.setTextAlignment(TEXT_ALIGN_CENTER_BOTH);
   gfx.drawString(centerX + offsetX, centerY + offsetY, text);
 }
-void updateCell(int row, int col, int imgNum) {
+void updateCell(int cellNumber, int index) {
+
+  // Get the row and column number from the cell number 
+  int row = 0;
+  int col = 0;
+  cellToGrid(cellNumber, row, col);
 
   // Get the coordinates of the cell vertices
   int minX = config.screen.grid.cellWidth * (col - 1);
@@ -522,22 +547,58 @@ void updateCell(int row, int col, int imgNum) {
 
   // Create the image provided
   gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, icons[imgNum]);
+  gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, myIcons[index]);
 }
 
 // Function to show the main screen with the grid and icons of the different cells
 void drawHome() {
   drawGrid();
-  updateCell(1, 1, 0);
-  updateCell(1, 1, "Relè", 0, 40);
-  updateCell(1, 2, 1);
-  updateCell(1, 2, "Tende", 0, 40);
-  updateCell(2, 1, 2);
-  updateCell(2, 1, "Condizionatori", 0, 40);
-  updateCell(2, 2, 3);
-  updateCell(2, 2, "Strisce LED", 0, 40);
-  updateCell(3, 1, 4);
-  updateCell(3, 1, "Sensori ambientali", 0, 40);
+
+  // Calculate the maximum number of cells on a page and the maximum number of devices to show 
+  int maxCells = config.screen.grid.rows * config.screen.grid.cols;
+  int maxIot = config.iotList;
+  
+  // Check if pagination is required
+  bool needsPagination = config.iotList > maxCells;
+
+  // Define the variable for the cell we are currently updating
+  int currentCell = 1;
+
+  // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of devices that can be shown 
+  if ((needsPagination) && (currentPage > 1)) {
+    updateCell(currentCell, "Avanti");
+    maxIot--;
+    currentCell++;
+  }
+
+  // Calculate the lesser of the total number of displayable devices and the total number of configured devices
+  int limit = min(maxIot, config.iotList);
+
+  // For each real IoT device configured 
+  for (int i = 0; i < limit; i++) {
+
+    // Look for its image
+    int imgIndex = getImageIndex(config.iot[i].icon);
+    bool hasImage = imgIndex > -1;
+
+    // If an image is available show it together with the name, otherwise show only the center-aligned name 
+    if (hasImage) {
+      updateCell(currentCell, imgIndex);
+      updateCell(currentCell, String(config.iot[i].name), 0, 40);
+    }
+    else {
+      updateCell(currentCell, String(config.iot[i].name));
+    }
+
+    // Increment the current cell number 
+    currentCell++;
+    
+    
+    
+
+    
+    
+  }
 }
 
 // Function to obtain the number of the cell touched, given the coordinates of the point
