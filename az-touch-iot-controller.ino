@@ -566,7 +566,7 @@ void drawHome() {
 
   // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of devices that can be shown 
   if ((needsPagination) && (currentPage > 1)) {
-    updateCell(currentCell, "Avanti");
+    updateCell(currentCell, getImageIndex("back"));
     maxIot--;
     currentCell++;
   }
