@@ -239,6 +239,7 @@ void setup() {
 
   // Set the home screen to show
   currentScreen = 0;
+  currentPage = 1;
 }
 
 // Loop function, performed cyclically as long as the device is active
@@ -571,34 +572,48 @@ void drawHome() {
     currentCell++;
   }
 
+  // Determine which device to view from 
+  int minIot = maxIot * (currentPage - 1);
+
   // Calculate the lesser of the total number of displayable devices and the total number of configured devices
-  int limit = min(maxIot, config.iotList);
+  int limit = min(maxIot, maxCells);
 
   // For each real IoT device configured 
-  for (int i = 0; i < limit; i++) {
+  for (minIot; minIot < limit; minIot++) {
 
-    // Look for its image
-    int imgIndex = getImageIndex(config.iot[i].icon);
-    bool hasImage = imgIndex > -1;
+    Serial.print("minIot is: "); Serial.println(minIot);
+    Serial.print("limit is: "); Serial.println(limit);
+    Serial.print("maxIot is: "); Serial.println(maxIot);
+    Serial.println("-");
 
-    // If an image is available show it together with the name, otherwise show only the center-aligned name 
-    if (hasImage) {
-      updateCell(currentCell, imgIndex);
-      updateCell(currentCell, String(config.iot[i].name), 0, 40);
+    // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
+    if ((minIot == (limit - 1)) && (minIot < maxIot)) {
+      Serial.print("Updating cell "); Serial.print(currentCell); Serial.println(" with next icon");
+      updateCell(currentCell, getImageIndex("next"));
     }
+
     else {
-      updateCell(currentCell, String(config.iot[i].name));
+      Serial.print("Updating cell "); Serial.print(currentCell); Serial.println(" with IoT icon");
+
+      // Look for the image
+      int imgIndex = getImageIndex(config.iot[minIot].icon);
+      bool hasImage = imgIndex > -1;
+  
+      // If an image is available show it together with the name, otherwise show only the center-aligned name 
+      if (hasImage) {
+        updateCell(currentCell, imgIndex);
+        updateCell(currentCell, String(config.iot[minIot].name), 0, 40);
+      }
+      else {
+        updateCell(currentCell, String(config.iot[minIot].name));
+      }
     }
 
     // Increment the current cell number 
     currentCell++;
-    
-    
-    
-
-    
-    
   }
+
+  Serial.println("End of home function");
 }
 
 // Function to obtain the number of the cell touched, given the coordinates of the point

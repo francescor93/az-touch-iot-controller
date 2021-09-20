@@ -1,3 +1,4 @@
+// Download Font Awesome icons for free using this tool: https://fa2png.app/
 // Create your own icon by converting from jpg to xbm using this tool: https://convertio.co/it/jpg-xbm/
 
 static char* iconNames[] = { "back", "next", "relay", "curtain", "airconditioner", "ledstrip", "environmentsensor" };
