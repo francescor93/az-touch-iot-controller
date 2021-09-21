@@ -565,35 +565,29 @@ void drawHome() {
   // Define the variable for the cell we are currently updating
   int currentCell = 1;
 
-  // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of devices that can be shown 
+  // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
   if ((needsPagination) && (currentPage > 1)) {
     updateCell(currentCell, getImageIndex("back"));
-    maxIot--;
+    maxCells--;
     currentCell++;
   }
 
   // Determine which device to view from 
-  int minIot = maxIot * (currentPage - 1);
+  int minIot = maxCells * (currentPage - 1);
+  if (currentPage > 2) { minIot--; }
 
   // Calculate the lesser of the total number of displayable devices and the total number of configured devices
   int limit = min(maxIot, maxCells);
 
   // For each real IoT device configured 
-  for (minIot; minIot < limit; minIot++) {
-
-    Serial.print("minIot is: "); Serial.println(minIot);
-    Serial.print("limit is: "); Serial.println(limit);
-    Serial.print("maxIot is: "); Serial.println(maxIot);
-    Serial.println("-");
+  for (int i = 0; i < limit; i++) {
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
-    if ((minIot == (limit - 1)) && (minIot < maxIot)) {
-      Serial.print("Updating cell "); Serial.print(currentCell); Serial.println(" with next icon");
+    if ((i == (limit - 1)) && (minIot < (maxIot -1))) {
       updateCell(currentCell, getImageIndex("next"));
     }
 
     else {
-      Serial.print("Updating cell "); Serial.print(currentCell); Serial.println(" with IoT icon");
 
       // Look for the image
       int imgIndex = getImageIndex(config.iot[minIot].icon);
@@ -609,11 +603,10 @@ void drawHome() {
       }
     }
 
-    // Increment the current cell number 
+    // Increment the current cell number and the current IoT device number
     currentCell++;
+    minIot++;
   }
-
-  Serial.println("End of home function");
 }
 
 // Function to obtain the number of the cell touched, given the coordinates of the point
@@ -644,14 +637,10 @@ int calculateTouchedCell(int x, int y) {
   if (touchedCol < 0) { touchedCol = 0; }
   if (touchedCol > config.screen.grid.cols - 1) { touchedCol = config.screen.grid.cols - 1; }
 
-  // Print a message if debug is true
-  if (debug) {
-    Serial.print("Touched row "); Serial.print(touchedRow + 1); Serial.print(" and col "); Serial.println(touchedCol + 1);
-  }
-
   // Get the cell number from the array, print a message if the debug is true, and then return it
   int cellNumber = cells[touchedRow][touchedCol];
   if (debug) {
+    Serial.print("Touched row "); Serial.print(touchedRow + 1); Serial.print(" and col "); Serial.println(touchedCol + 1);
     Serial.print("Cell number is: "); Serial.println(cellNumber);
   }
   return cellNumber;
@@ -659,6 +648,34 @@ int calculateTouchedCell(int x, int y) {
 
 // Function to perform an action based on the cell touched and the current screen
 void executeCellAction(int cellNumber) {
+
+  // Calculate the maximum number of cells on a page
+  int maxCells = config.screen.grid.rows * config.screen.grid.cols;
+  int lastCell = maxCells;
+  
+  // Check if pagination is required
+  bool needsPagination = config.iotList > maxCells;
+
+  // If pagination is required, the current page is not the first one and the first cell (corresponding to "Back") has been touched, decrease the number of the current page and print a message if debug is true
+  if ((needsPagination) && (currentPage > 1) && (cellNumber == 1)) {
+    if (debug) {
+      Serial.println("Back cell touched: decreasing page");
+    }
+    currentPage--;
+    return;
+  }
+
+  // If pagination is required, the current page is not the last one and the last cell (corresponding to "Next") has been touched, increase the number of the current page and print a message if debug is true
+  if ((needsPagination) && (currentPage > 1)) { maxCells--; if (currentPage > 2) { maxCells--; } }
+  int minIot = maxCells * (currentPage - 1);
+  bool isLastPage = (minIot + maxCells) >= config.iotList;
+  if ((needsPagination) && (!isLastPage) && (cellNumber == lastCell)) {
+    if (debug) {
+      Serial.println("Next cell touched: increasing page");
+    }
+    currentPage++;
+    return;
+  }
 
   // If the current screen is the home screen, send the status request on the topic associated with the cell and print a message if debug is true
   if (currentScreen == 0) {
