@@ -21,6 +21,12 @@
 #include "TouchControllerWS.h"
 #include "icons.cpp"
 
+/***** Advanced Configuration *****/
+  struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
+  struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
+  bool debug = true;
+/***** Advanced Configuration *****/
+
 // Include the configuration file
 #include "settings.h"
 
