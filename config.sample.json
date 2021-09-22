@@ -1,0 +1,37 @@
+{
+	"wifi": {
+		"ssid": "ssid",
+		"password": "password",
+		"ip": "127.0.0.1",
+		"gateway": "127.0.0.1",
+		"subnet": "127.0.0.1",
+		"dns": "127.0.0.1"
+	},
+	"mqtt": {
+		"host": "127.0.0.1",
+		"user": "user",
+		"password": "password"
+	},
+	"device": {
+		"id": "1"
+	},
+	"screen": {
+		"landscape": true,
+		"darkMode": true,
+		"maxColsLandscape": 1,
+		"maxRowsLandscape": 1,
+		"iconsSize": 1,
+		"timeout": 1,
+		"headerHeight": 1
+	},
+	"iot": [
+		{
+			"name": "Object name",
+			"icon": "icon-name",
+			"topic": {
+				"listRequest": "/Your/Topic/Here",
+				"listResponse": "/Your/Topic/Here"
+			}
+		}
+	]
+}
