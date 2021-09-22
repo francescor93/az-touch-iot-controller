@@ -5,9 +5,6 @@
  * Description 2
 */
 
-// Enable ArduinoJson comment support, to better understand the configuration file
-#define ARDUINOJSON_ENABLE_COMMENTS 1
-
 // Include the necessary libraries
 #include <Arduino.h>
 #include <SPI.h>
@@ -95,17 +92,21 @@ struct Screen {
   struct Grid grid;
   struct Colors colors;
 };
+struct Topics {
+  char listRequest[64];
+  char listResponse[64];
+};
 struct Iot {
   char name[32];
   char icon[32];
-  char topic[64];
+  struct Topics topic;
 };
 struct Config {
   struct Wifi wifi;
   struct Mqtt mqtt;
   struct Device device;
   struct Screen screen;
-  struct Iot iot[64];
+  struct Iot iot[32];
   int iotList;
 };
 Config config;
@@ -367,7 +368,7 @@ void loadConfiguration() {
   }
 
   // Initialize a json document and deserialize the configuration file
-  StaticJsonDocument<2048> doc;
+  StaticJsonDocument<2304> doc;
   DeserializationError error = deserializeJson(doc, file);
 
   // Write the configuration parameters into the Config struct
@@ -406,12 +407,14 @@ void loadConfiguration() {
     Iot iot;
     strlcpy(iot.name, iotObj["name"], sizeof(iot.name));
     strlcpy(iot.icon, iotObj["icon"], sizeof(iot.icon));
-    strlcpy(iot.topic, iotObj["topic"], sizeof(iot.topic));
+    strlcpy(iot.topic.listRequest, iotObj["topic"]["listRequest"], sizeof(iot.topic.listRequest));
+    strlcpy(iot.topic.listResponse, iotObj["topic"]["listResponse"], sizeof(iot.topic.listResponse));
     config.iot[i] = iot;
     i += 1;
   }
   config.iotList = i;
   
+  // Close the config file
   file.close();
 }
 
@@ -666,8 +669,9 @@ void executeCellAction(int cellNumber) {
   }
 
   // If pagination is required, the current page is not the last one and the last cell (corresponding to "Next") has been touched, increase the number of the current page and print a message if debug is true
-  if ((needsPagination) && (currentPage > 1)) { maxCells--; if (currentPage > 2) { maxCells--; } }
+  if ((needsPagination) && (currentPage > 1)) { maxCells--; }
   int minIot = maxCells * (currentPage - 1);
+  if (currentPage > 2) { minIot--; }
   bool isLastPage = (minIot + maxCells) >= config.iotList;
   if ((needsPagination) && (!isLastPage) && (cellNumber == lastCell)) {
     if (debug) {
@@ -677,14 +681,21 @@ void executeCellAction(int cellNumber) {
     return;
   }
 
+  // Get the touched IoT device number
+  int currentIot = minIot + cellNumber;
+  if (currentPage > 1) { currentIot--; }
+  if (debug) {
+    Serial.print("Touched IoT device "); Serial.println(currentIot);
+  }
+
   // If the current screen is the home screen, send the status request on the topic associated with the cell and print a message if debug is true
   if (currentScreen == 0) {
-    const char* topic = topics[cellNumber - 1];
+    const char* topic = config.iot[currentIot - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
       if (debug) {
         Serial.print("Sending request to "); Serial.println(topic);
       }
-      client.publish(topics[cellNumber - 1], "");
+      client.publish(topic, "");
     }
   }
 }
