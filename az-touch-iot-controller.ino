@@ -150,7 +150,7 @@ void setup() {
     delay(500);
   }
   if (debug) {
-    Serial.println("SD card loaded");
+    Serial.println("SD card reader initialized");
   }
 
   // If a configuration file exists on the card, copy it to SPIFFS memory and print a message if debug is true
@@ -223,16 +223,20 @@ void loop() {
   // Update the MQTT connection
   client.loop();
 
-  // Create the updated header
-  drawHeader();
+  // If not waiting loading
+  if (currentScreen != -2) {
 
-  // Shows the screen we need based on the currentScreen variable
-  if (currentScreen == -1) {
-    drawHome();
-  }
+    // Create the updated header
+    drawHeader();
 
-  else if (currentScreen >= 0) {
-    drawProgress(50, "Preparing to show device");
+    // Show the screen we need based on the currentScreen variable
+    if (currentScreen == -1) {
+      drawHome();
+    }
+
+    else if (currentScreen >= 0) {
+      drawIotScreen(currentScreen);
+    }
   }
 
   // When a touch is detected, identify the touched point
@@ -281,7 +285,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   // Convert the received string to an array
   StaticJsonDocument<1024> devices;
-  deserializeJson(devices, (char*)payload);
   DeserializationError error = deserializeJson(devices, (char*)payload);
 
   // Save each element of the array as a device in the appropriate struct 
@@ -294,16 +297,23 @@ void callback(char* topic, byte* payload, unsigned int length) {
     currentDevices.iot[i] = device;
     i += 1;
   }
+  currentDevices.iotList = i;
 
-  // Identify what type of device was received
+  // Set screen and page based on the received topic and print a message if debug is true
   int iotIndex;
   for (int i = 0; i < config.iotList; i++) {
     if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
       currentScreen = i;
       currentPage = 1;
+      if (debug) {
+        Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+      }
       break;
     }
-  } 
+  }
+
+  // Update the last touch time
+  lastTouch = millis();
 }
 
 // Functions to calibrate the touchscreen at first power up
@@ -495,9 +505,8 @@ void updateCell(int cellNumber, int index) {
 void drawHome() {
   drawGrid();
 
-  // Calculate the maximum number of cells on a page and the maximum number of devices to show 
+  // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
-  int maxIot = config.iotList;
   
   // Check if pagination is required
   bool needsPagination = config.iotList > maxCells;
@@ -516,14 +525,14 @@ void drawHome() {
   int minIot = maxCells * (currentPage - 1);
   if (currentPage > 2) { minIot--; }
 
-  // Calculate the lesser of the total number of displayable devices and the total number of configured devices
-  int limit = min(maxIot, maxCells);
+  // Calculate the lesser of the total number of configured devices and the total number of displayable cells
+  int limit = min(config.iotList, maxCells);
 
   // For each real IoT device configured 
   for (int i = 0; i < limit; i++) {
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
-    if ((i == (limit - 1)) && (minIot < (maxIot -1))) {
+    if ((i == (limit - 1)) && (minIot < (config.iotList - 1))) {
       updateCell(currentCell, getImageIndex("next"));
     }
 
@@ -540,6 +549,61 @@ void drawHome() {
       }
       else {
         updateCell(currentCell, String(config.iot[minIot].name));
+      }
+    }
+
+    // Increment the current cell number and the current IoT device number
+    currentCell++;
+    minIot++;
+  }
+}
+
+void drawIotScreen(int currentScreen) {
+  drawGrid();
+
+  // Calculate the maximum number of cells on a page and the maximum number of devices to show 
+  int maxCells = config.screen.grid.rows * config.screen.grid.cols;
+  
+  // Check if pagination is required
+  bool needsPagination = currentDevices.iotList > maxCells;
+
+  // Define the variable for the cell we are currently updating
+  int currentCell = 1;
+
+  // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
+  if ((needsPagination) && (currentPage > 1)) {
+    updateCell(currentCell, getImageIndex("back"));
+    maxCells--;
+    currentCell++;
+  }
+
+  // Determine which device to view from 
+  int minIot = maxCells * (currentPage - 1);
+  if (currentPage > 2) { minIot--; }
+
+  // Calculate the lesser of the total number of received devices and the total number of displayable cells
+  int limit = min(currentDevices.iotList, maxCells);
+
+  // Look for the device type image
+  int imgIndex = getImageIndex(config.iot[currentScreen].icon);
+  bool hasImage = imgIndex > -1;
+
+  // For each real IoT device received 
+  for (int i = 0; i < limit; i++) {
+
+    // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
+    if ((i == (limit - 1)) && (minIot < (currentDevices.iotList - 1))) {
+      updateCell(currentCell, getImageIndex("next"));
+    }
+    else {
+
+      // If an image is available show it together with the name, otherwise show only the center-aligned name 
+      if (hasImage) {
+        updateCell(currentCell, imgIndex);
+        updateCell(currentCell, String(currentDevices.iot[minIot].name), 0, 40);
+      }
+      else {
+        updateCell(currentCell, String(currentDevices.iot[minIot].name));
       }
     }
 
@@ -625,14 +689,16 @@ void executeCellAction(int cellNumber) {
     Serial.print("Touched IoT device "); Serial.println(currentIot);
   }
 
-  // If the current screen is the home screen, send the status request on the topic associated with the cell and print a message if debug is true
+  // If the current screen is the home screen, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if (currentScreen == -1) {
     const char* topic = config.iot[currentIot - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
+      client.publish(topic, "");
+      currentScreen = -2;
+      drawProgress(50, "Loading devices");
       if (debug) {
         Serial.print("Sending request to "); Serial.println(topic);
       }
-      client.publish(topic, "");
     }
   }
 }
