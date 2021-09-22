@@ -40,7 +40,7 @@
 const char* DEVICE = "TouchController";
 const char* DELIMITER = "/";
 
-// Configure the screen
+// Define the appearance of the screen 
 #define HAVE_TOUCHPAD
 int BITS_PER_PIXEL = 2; // 2^2 =  4 colors
 uint16_t palette[] = {
@@ -58,6 +58,18 @@ unsigned long int lastTouch;
 // Initialize the struct for the configuration and define the file name
 Config config;
 const char* filename = "/config.txt";
+
+// Initialize the struct for individual IoT devices+
+struct IotDevice {
+  char id[8];
+  char name[32];
+  char status[32];
+};
+struct Devices {
+  IotDevice iot[32];
+  int iotList;
+};
+Devices currentDevices;
 
 // This line is needed to avoid the compile error for callback function not (yet) defined
 extern void callback(char* topic, byte* payload, unsigned int length);
@@ -196,7 +208,7 @@ void setup() {
   configTime(config.time.utcOffset * 3600, 0, config.time.ntpServer);
 
   // Set the home screen to show
-  currentScreen = 0;
+  currentScreen = -1;
   currentPage = 1;
 }
 
@@ -215,8 +227,12 @@ void loop() {
   drawHeader();
 
   // Shows the screen we need based on the currentScreen variable
-  if (currentScreen == 0) {
+  if (currentScreen == -1) {
     drawHome();
+  }
+
+  else if (currentScreen >= 0) {
+    drawProgress(50, "Preparing to show device");
   }
 
   // When a touch is detected, identify the touched point
@@ -240,9 +256,11 @@ void loop() {
     lastTouch = millis();
   }
 
-  // If the screen has been on for too long without touching, turn it off
+  // If the screen has been on for too long without touching, turn it off and return to the home screen
   if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
     digitalWrite(TFT_LED, LOW);
+    currentScreen = -1;
+    currentPage = 1;
   }
 
   // Write the created data on the screen
@@ -253,14 +271,40 @@ void loop() {
 }
 
 // Callback function executed whenever an MQTT message is received
-void callback(char* topic, byte* payload, unsigned int length) { //FixMe -- Start here
+void callback(char* topic, byte* payload, unsigned int length) {
 
   // Print a message if debug is true
   if (debug) {
     Serial.print("Received command: "); Serial.println(topic);
     Serial.print("With payload: "); Serial.println(payload[0]);
   }
-} //FixMe: -- End here
+
+  // Convert the received string to an array
+  StaticJsonDocument<1024> devices;
+  deserializeJson(devices, (char*)payload);
+  DeserializationError error = deserializeJson(devices, (char*)payload);
+
+  // Save each element of the array as a device in the appropriate struct 
+  int i = 0;
+  for (JsonObject iotObj : devices.as<JsonArray>()) {
+    IotDevice device;
+    strlcpy(device.id, iotObj["id"], sizeof(device.id));
+    strlcpy(device.name, iotObj["name"], sizeof(device.name));
+    strlcpy(device.status, iotObj["status"], sizeof(device.status));
+    currentDevices.iot[i] = device;
+    i += 1;
+  }
+
+  // Identify what type of device was received
+  int iotIndex;
+  for (int i = 0; i < config.iotList; i++) {
+    if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
+      currentScreen = i;
+      currentPage = 1;
+      break;
+    }
+  } 
+}
 
 // Functions to calibrate the touchscreen at first power up
 void calibrateTouchScreen() {
@@ -582,7 +626,7 @@ void executeCellAction(int cellNumber) {
   }
 
   // If the current screen is the home screen, send the status request on the topic associated with the cell and print a message if debug is true
-  if (currentScreen == 0) {
+  if (currentScreen == -1) {
     const char* topic = config.iot[currentIot - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
       if (debug) {
@@ -627,8 +671,11 @@ void reconnect() {
       drawProgress(i, "Connecting to MQTT '" + String(config.mqtt.host) + "'");
       i += 10;
       if (client.connect(mqttClientID, config.mqtt.user, config.mqtt.password)) {
-        //client.subscribe(topic-here); //FixMe
-        //client.setBufferSize(512); //FixMe
+
+        // Subscribe to each "listResponse" topic
+        for (int i = 0; i < config.iotList; i++) {
+          client.subscribe(config.iot[i].topic.listResponse);
+        }
       }
       delay(500);
     }
