@@ -15,6 +15,10 @@
 	"device": {
 		"id": "1"
 	},
+	"time": {
+		"utcOffset": 0,
+		"ntpServer": "your.ntp.server"
+	},
 	"screen": {
 		"landscape": true,
 		"darkMode": true,

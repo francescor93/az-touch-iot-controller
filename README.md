@@ -58,6 +58,20 @@ Here you can uniquely configure the device to distinguish it from any other simi
 
 - **id**: This must be a numeric id of your choice different from any other id used in devices with this same code on the same network. (Please note: maximum length supported: 8 characters)
 
+### Time
+
+Here you can configure the settings for time synchronization on your device
+
+```json
+"time": {
+  "utcOffset": 0,
+  "ntpServer": "your.ntp.server"
+ }
+```
+
+- **utcOffset**: An integer representing the difference in hours between your local time and UTC
+- **ntpServer**: This is the NTP server to connect to for time synchronization. Choose one geographically as close to you as possible for better accuracy. (Please note: maximum length supported: 32 characters)
+
 ### Screen
 
 Here you can configure the appearance of your device's screen.
@@ -102,6 +116,7 @@ This is the main element of the configuration. An array containing an object for
 ```
 
 Each object contained in the array will contain the following properties:
+
 - **name**: The name assigned to the type of device that will be displayed on the screen. (Please note: maximum length supported: 32 characters)
 - **icon**: The name of the icon to be associated with the type of device displayed on the screen, chosen from those available in the *icons.cpp* file.
 - **topic**: An object containing in turn the following properties:

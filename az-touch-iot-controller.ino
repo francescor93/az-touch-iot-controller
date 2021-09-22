@@ -27,9 +27,6 @@
   bool debug = true;
 /***** Advanced Configuration *****/
 
-// Include the configuration file
-#include "settings.h"
-
 // Define the pins used by the system
 #define TFT_DC D2
 #define TFT_CS D1
@@ -74,6 +71,10 @@ struct Mqtt {
 struct Device {
   char id[8];
 };
+struct Time {
+  int utcOffset;
+  char ntpServer[32];
+};
 struct Grid {
   int cols;
   int rows;
@@ -111,6 +112,7 @@ struct Config {
   struct Wifi wifi;
   struct Mqtt mqtt;
   struct Device device;
+  struct Time time;
   struct Screen screen;
   struct Iot iot[32];
   int iotList;
@@ -242,7 +244,7 @@ void setup() {
   }
 
   // Synchronize time with NTP server
-  configTime(UTC_OFFSET * 3600, 0, NTP_SERVERS);
+  configTime(config.time.utcOffset * 3600, 0, config.time.ntpServer);
 
   // Set the home screen to show
   currentScreen = 0;
@@ -388,6 +390,8 @@ void loadConfiguration() {
   strlcpy(config.mqtt.user, doc["mqtt"]["user"], sizeof(config.mqtt.user));
   strlcpy(config.mqtt.password, doc["mqtt"]["password"], sizeof(config.mqtt.password));
   strlcpy(config.device.id, doc["device"]["id"], sizeof(config.device.id));
+  config.time.utcOffset = doc["time"]["utcOffset"];
+  strlcpy(config.time.ntpServer, doc["time"]["ntpServer"], sizeof(config.time.ntpServer));
   config.screen.landscape = doc["screen"]["landscape"];
   config.screen.iconsSize = doc["screen"]["iconsSize"];
   config.screen.timeout = doc["screen"]["timeout"];
