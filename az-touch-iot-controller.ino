@@ -25,6 +25,7 @@
 /***** Advanced Configuration *****/
   struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
   struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
+  int jsonSize = 2304;
   bool debug = true;
 /***** Advanced Configuration *****/
 
@@ -40,7 +41,7 @@
 const char* DEVICE = "TouchController";
 const char* DELIMITER = "/";
 
-// Define the appearance of the screen 
+// Define the appearance of the screen
 #define HAVE_TOUCHPAD
 int BITS_PER_PIXEL = 2; // 2^2 =  4 colors
 uint16_t palette[] = {
@@ -59,7 +60,7 @@ unsigned long int lastTouch;
 Config config;
 const char* filename = "/config.txt";
 
-// Initialize the struct for individual IoT devices+
+// Initialize the struct for individual IoT devices
 struct IotDevice {
   char id[8];
   char name[32];
@@ -158,10 +159,10 @@ void setup() {
   if (sourceFile) {
     SPIFFS.remove(filename);
     File destFile = SPIFFS.open(filename, "w");
-    static uint8_t buf[512];
+    uint8_t buf[jsonSize];
     int i = 0;
-    while (sourceFile.read(buf, 512)) {
-      destFile.write(buf, 512);
+    while (sourceFile.read(buf, jsonSize)) {
+      destFile.write(buf, jsonSize);
       if (i > 80) {
         i = 0;
       }
@@ -183,11 +184,19 @@ void setup() {
     if (debug) {
       Serial.println("Configuration file missing!");
     }
-    while(true) {} // Stay here forever
+    while(true) { delay(10); } // Stay here forever
   }
 
-  // Load the configuration
-  loadConfiguration(config, filename);
+  // Load the configuration and close the file
+  drawProgress(50, "Loading configuration");
+  if (!loadConfiguration(config, file, jsonSize)) {
+    drawProgress(50, "Can't read configuration");
+    if (debug) {
+      Serial.println("Can't read configuration");
+    }
+  }
+  drawProgress(100, "Configuration loaded");
+  file.close();
 
   // Set the correct screen rotation
   gfx.setRotation(config.screen.landscape ? 3 : 2);
@@ -287,7 +296,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   StaticJsonDocument<1024> devices;
   DeserializationError error = deserializeJson(devices, (char*)payload);
 
-  // Save each element of the array as a device in the appropriate struct 
+  // Save each element of the array as a device in the appropriate struct
   int i = 0;
   for (JsonObject iotObj : devices.as<JsonArray>()) {
     IotDevice device;
@@ -435,7 +444,7 @@ void drawGrid() {
   }
 }
 
-// Function to get row and column starting from the cell number 
+// Function to get row and column starting from the cell number
 void cellToGrid(int cellNumber, int &row, int &col) {
   float r = (float)cellNumber / (float)config.screen.grid.cols;
   r = r + 0.5;
@@ -458,7 +467,7 @@ int getImageIndex(char* name) {
 // Functions to update the contents of a cell with text or an image
 void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
 
-  // Get the row and column number from the cell number 
+  // Get the row and column number from the cell number
   int row = 0;
   int col = 0;
   cellToGrid(cellNumber, row, col);
@@ -481,7 +490,7 @@ void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
 }
 void updateCell(int cellNumber, int index) {
 
-  // Get the row and column number from the cell number 
+  // Get the row and column number from the cell number
   int row = 0;
   int col = 0;
   cellToGrid(cellNumber, row, col);
@@ -507,7 +516,7 @@ void drawHome() {
 
   // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
-  
+
   // Check if pagination is required
   bool needsPagination = config.iotList > maxCells;
 
@@ -521,14 +530,14 @@ void drawHome() {
     currentCell++;
   }
 
-  // Determine which device to view from 
+  // Determine which device to view from
   int minIot = maxCells * (currentPage - 1);
   if (currentPage > 2) { minIot--; }
 
   // Calculate the lesser of the total number of configured devices and the total number of displayable cells
   int limit = min(config.iotList, maxCells);
 
-  // For each real IoT device configured 
+  // For each real IoT device configured
   for (int i = 0; i < limit; i++) {
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
@@ -541,8 +550,8 @@ void drawHome() {
       // Look for the image
       int imgIndex = getImageIndex(config.iot[minIot].icon);
       bool hasImage = imgIndex > -1;
-  
-      // If an image is available show it together with the name, otherwise show only the center-aligned name 
+
+      // If an image is available show it together with the name, otherwise show only the center-aligned name
       if (hasImage) {
         updateCell(currentCell, imgIndex);
         updateCell(currentCell, String(config.iot[minIot].name), 0, 40);
@@ -561,9 +570,9 @@ void drawHome() {
 void drawIotScreen(int currentScreen) {
   drawGrid();
 
-  // Calculate the maximum number of cells on a page and the maximum number of devices to show 
+  // Calculate the maximum number of cells on a page and the maximum number of devices to show
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
-  
+
   // Check if pagination is required
   bool needsPagination = currentDevices.iotList > maxCells;
 
@@ -577,7 +586,7 @@ void drawIotScreen(int currentScreen) {
     currentCell++;
   }
 
-  // Determine which device to view from 
+  // Determine which device to view from
   int minIot = maxCells * (currentPage - 1);
   if (currentPage > 2) { minIot--; }
 
@@ -588,7 +597,7 @@ void drawIotScreen(int currentScreen) {
   int imgIndex = getImageIndex(config.iot[currentScreen].icon);
   bool hasImage = imgIndex > -1;
 
-  // For each real IoT device received 
+  // For each real IoT device received
   for (int i = 0; i < limit; i++) {
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
@@ -597,7 +606,7 @@ void drawIotScreen(int currentScreen) {
     }
     else {
 
-      // If an image is available show it together with the name, otherwise show only the center-aligned name 
+      // If an image is available show it together with the name, otherwise show only the center-aligned name
       if (hasImage) {
         updateCell(currentCell, imgIndex);
         updateCell(currentCell, String(currentDevices.iot[minIot].name), 0, 40);
@@ -656,7 +665,7 @@ void executeCellAction(int cellNumber) {
   // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
   int lastCell = maxCells;
-  
+
   // Check if pagination is required
   bool needsPagination = config.iotList > maxCells;
 

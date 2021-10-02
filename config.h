@@ -73,4 +73,4 @@ struct Config {
   int iotList;
 };
 
-extern void loadConfiguration(Config &config, const char* filename);
+extern bool loadConfiguration(Config &config, File &file, int jsonSize);

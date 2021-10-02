@@ -1,14 +1,16 @@
 #include "config.h"
 
 // Function to load the configuration into the Config struct
-void loadConfiguration(Config &config, const char* filename) {
-
-  // Open configuration file
-  File file = SPIFFS.open(filename, "r");
+bool loadConfiguration(Config &config, File &file, int jsonSize) {
 
   // Initialize a json document and deserialize the configuration file
-  StaticJsonDocument<2304> doc;
+  DynamicJsonDocument doc(jsonSize);
   DeserializationError error = deserializeJson(doc, file);
+  if (error) {
+    Serial.print("Error during deserialization: ");
+    Serial.println(error.c_str());
+    return false;
+  }
 
   // Write the configuration parameters into the Config struct
   strlcpy(config.wifi.ssid, doc["wifi"]["ssid"], sizeof(config.wifi.ssid));
@@ -54,7 +56,7 @@ void loadConfiguration(Config &config, const char* filename) {
     i += 1;
   }
   config.iotList = i;
-  
-  // Close the config file
-  file.close();
+
+  // Return positive result
+  return true;
 }
