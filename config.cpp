@@ -7,7 +7,7 @@ bool loadConfiguration(Config &config, File &file, int jsonSize) {
   DynamicJsonDocument doc(jsonSize);
   DeserializationError error = deserializeJson(doc, file);
   if (error) {
-    Serial.print("Error during deserialization: ");
+    Serial.print("Error during config deserialization: ");
     Serial.println(error.c_str());
     return false;
   }

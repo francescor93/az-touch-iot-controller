@@ -62,7 +62,7 @@ const char* filename = "/config.txt";
 
 // Initialize the struct for individual IoT devices
 struct IotDevice {
-  char id[8];
+  int id;
   char name[32];
   char status[32];
 };
@@ -289,21 +289,33 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Print a message if debug is true
   if (debug) {
     Serial.print("Received command: "); Serial.println(topic);
-    Serial.print("With payload: "); Serial.println(payload[0]);
+    Serial.print("With payload: "); Serial.println((char*)payload);
   }
 
   // Convert the received string to an array
   StaticJsonDocument<1024> devices;
   DeserializationError error = deserializeJson(devices, (char*)payload);
+  if (error) {
+    if (debug) {
+      Serial.print("Error during MQTT deserialization: ");
+      Serial.println(error.c_str());
+    }
+    return;
+  }
 
   // Save each element of the array as a device in the appropriate struct
   int i = 0;
   for (JsonObject iotObj : devices.as<JsonArray>()) {
     IotDevice device;
-    strlcpy(device.id, iotObj["id"], sizeof(device.id));
+    device.id = iotObj["id"];
     strlcpy(device.name, iotObj["name"], sizeof(device.name));
-    strlcpy(device.status, iotObj["status"], sizeof(device.status));
-    currentDevices.iot[i] = device;
+    if (iotObj["status"].is<int>()) {
+      itoa(iotObj["status"], device.status, 10);
+    }
+    else {
+      strlcpy(device.status, iotObj["status"], sizeof(device.status));
+    }
+    currentDevices.iot[i] = device;Serial.println("Added");
     i += 1;
   }
   currentDevices.iotList = i;
@@ -320,6 +332,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
       break;
     }
   }
+
+  // Make sure the backlight is on
+  digitalWrite(TFT_LED, HIGH);
 
   // Update the last touch time
   lastTouch = millis();
