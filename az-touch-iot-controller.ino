@@ -315,7 +315,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     else {
       strlcpy(device.status, iotObj["status"], sizeof(device.status));
     }
-    currentDevices.iot[i] = device;Serial.println("Added");
+    currentDevices.iot[i] = device;
     i += 1;
   }
   currentDevices.iotList = i;
