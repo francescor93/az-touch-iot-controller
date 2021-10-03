@@ -293,7 +293,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
   // Convert the received string to an array
-  StaticJsonDocument<1024> devices;
+  DynamicJsonDocument devices(jsonSize);
   DeserializationError error = deserializeJson(devices, (char*)payload);
   if (error) {
     if (debug) {
@@ -725,6 +725,10 @@ void executeCellAction(int cellNumber) {
       }
     }
   }
+
+
+  // If current screen is not home, do something awesome
+  
 }
 
 // Function for (re) connection to the wifi and MQTT broker
@@ -766,12 +770,15 @@ void reconnect() {
         for (int i = 0; i < config.iotList; i++) {
           client.subscribe(config.iot[i].topic.listResponse);
         }
+
+        // Increase buffer size
+        client.setBufferSize(jsonSize);
       }
       delay(500);
     }
     if (debug) {
       Serial.println("Connected to MQTT");
-      //Serial.print("Buffer size is: "); Serial.println(client.getBufferSize()); //FixMe
+      Serial.print("Buffer size is: "); Serial.println(client.getBufferSize());
     }
   }
 }
