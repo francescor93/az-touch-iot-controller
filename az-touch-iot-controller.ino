@@ -25,7 +25,11 @@
 /***** Advanced Configuration *****/
   struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
   struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
-  int jsonSize = 2304;
+  int configSize = 2048;
+  int mqttSize = 512;
+  const int maxDeviceTypes = 8;
+  const int maxDevices = 8;
+  const char* filename = "/config.txt";
   bool debug = true;
 /***** Advanced Configuration *****/
 
@@ -56,9 +60,8 @@ int currentScreen;
 int currentPage;
 unsigned long int lastTouch;
 
-// Initialize the struct for the configuration and define the file name
+// Initialize the struct for the configuration
 Config config;
-const char* filename = "/config.txt";
 
 // Initialize the struct for individual IoT devices
 struct IotDevice {
@@ -67,7 +70,7 @@ struct IotDevice {
   char status[32];
 };
 struct Devices {
-  IotDevice iot[32];
+  IotDevice iot[maxDevices];
   int iotList;
 };
 Devices currentDevices;
@@ -159,10 +162,10 @@ void setup() {
   if (sourceFile) {
     SPIFFS.remove(filename);
     File destFile = SPIFFS.open(filename, "w");
-    uint8_t buf[jsonSize];
+    uint8_t buf[configSize];
     int i = 0;
-    while (sourceFile.read(buf, jsonSize)) {
-      destFile.write(buf, jsonSize);
+    while (sourceFile.read(buf, configSize)) {
+      destFile.write(buf, configSize);
       if (i > 80) {
         i = 0;
       }
@@ -189,11 +192,12 @@ void setup() {
 
   // Load the configuration and close the file
   drawProgress(50, "Loading configuration");
-  if (!loadConfiguration(config, file, jsonSize)) {
+  if (!loadConfiguration(config, file, configSize)) {
     drawProgress(50, "Can't read configuration");
     if (debug) {
       Serial.println("Can't read configuration");
     }
+    while(true) { delay(10); } // Stay here forever
   }
   drawProgress(100, "Configuration loaded");
   file.close();
@@ -293,7 +297,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
   // Convert the received string to an array
-  DynamicJsonDocument devices(jsonSize);
+  DynamicJsonDocument devices(mqttSize);
   DeserializationError error = deserializeJson(devices, (char*)payload);
   if (error) {
     if (debug) {
@@ -728,7 +732,7 @@ void executeCellAction(int cellNumber) {
 
 
   // If current screen is not home, do something awesome
-  
+
 }
 
 // Function for (re) connection to the wifi and MQTT broker
@@ -772,7 +776,7 @@ void reconnect() {
         }
 
         // Increase buffer size
-        client.setBufferSize(jsonSize);
+        client.setBufferSize(mqttSize);
       }
       delay(500);
     }
