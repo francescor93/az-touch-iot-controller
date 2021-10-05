@@ -5,6 +5,14 @@
  * Description 2
 */
 
+/*
+ * Screen helper:
+ * -2: Loading something
+ * -1: Home
+ * 0~99: Devices list
+ * 100~199: Device actions
+ */
+
 // Include the necessary libraries
 #include <Arduino.h>
 #include <SPI.h>
@@ -25,7 +33,7 @@
 /***** Advanced Configuration *****/
   struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
   struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
-  int configSize = 2048;
+  int configSize = 2395;
   int mqttSize = 512;
   const int maxDevices = 8;
   const char* filename = "/config.txt";
@@ -63,10 +71,16 @@ unsigned long int lastTouch;
 Config config;
 
 // Initialize the struct for individual IoT devices
+struct Statuses {
+  char name[32];
+  char topic[64];
+};
 struct IotDevice {
   int id;
   char name[32];
   char status[32];
+  char icon[16];
+  int color;
 };
 struct Devices {
   IotDevice iot[maxDevices];
@@ -709,16 +723,16 @@ void executeCellAction(int cellNumber) {
     return;
   }
 
-  // Get the touched IoT device number
-  int currentIot = minIot + cellNumber;
-  if (currentPage > 1) { currentIot--; }
+  // Get the touched element number
+  int currentElement = minIot + cellNumber;
+  if (currentPage > 1) { currentElement--; }
   if (debug) {
-    Serial.print("Touched IoT device "); Serial.println(currentIot);
+    Serial.print("Touched IoT device "); Serial.println(currentElement);
   }
 
-  // If the current screen is the home screen, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
+  // If the current screen is the home screen, send the device request on the topic associated with the cell, show loading screen and print a message if debug is true
   if (currentScreen == -1) {
-    const char* topic = config.iot[currentIot - 1].topic.listRequest;
+    const char* topic = config.iot[currentElement - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
       client.publish(topic, "");
       currentScreen = -2;
@@ -728,10 +742,21 @@ void executeCellAction(int cellNumber) {
       }
     }
   }
+  // If current screen is one of the device lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
+  if ((currentScreen >= 0) && (currentScreen < 100)) {
+    const char* templateTopic = config.iot[currentScreen].topic.statusRequest;
+    if (strcmp(templateTopic, "") != 0) {
+      char topic[64];
+      sprintf(topic, templateTopic, currentDevices.iot[currentElement - 1].id);
+      client.publish(topic, "");
+      currentScreen = -2;
+      drawProgress(50, "Loading statuses");
+      if (debug) {
+        Serial.print("Sending request to "); Serial.println(topic);
+      }
+    }
 
-
-  // If current screen is not home, do something awesome
-
+  }
 }
 
 // Function for (re) connection to the wifi and MQTT broker

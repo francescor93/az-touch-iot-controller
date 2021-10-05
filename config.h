@@ -59,20 +59,14 @@ struct Screen {
 struct Topics {
   char listRequest[64];
   char listResponse[64];
-};
-
-struct Statuses {
-  char value[32];
-  char icon[16];
-  int color;
-  char topic[64];
+  char statusRequest[64];
+  char statusResponse[64];
 };
 
 struct Iot {
   char name[32];
   char icon[16];
   struct Topics topic;
-  struct Statuses statuses[8];
 };
 
 struct Config {

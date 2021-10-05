@@ -52,6 +52,8 @@ bool loadConfiguration(Config &config, File &file, int configSize) {
     strlcpy(iot.icon, iotObj["icon"], sizeof(iot.icon));
     strlcpy(iot.topic.listRequest, iotObj["topic"]["listRequest"], sizeof(iot.topic.listRequest));
     strlcpy(iot.topic.listResponse, iotObj["topic"]["listResponse"], sizeof(iot.topic.listResponse));
+    strlcpy(iot.topic.statusRequest, iotObj["topic"]["statusRequest"], sizeof(iot.topic.statusRequest));
+    strlcpy(iot.topic.statusResponse, iotObj["topic"]["statusResponse"], sizeof(iot.topic.statusResponse));
     config.iot[i] = iot;
     i += 1;
   }
