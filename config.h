@@ -57,10 +57,18 @@ struct Topics {
   char listResponse[64];
 };
 
+struct Statuses {
+  char value[32];
+  char icon[16];
+  int color;
+  char topic[64];
+};
+
 struct Iot {
   char name[32];
-  char icon[32];
+  char icon[16];
   struct Topics topic;
+  struct Statuses statuses[8];
 };
 
 struct Config {
@@ -69,8 +77,8 @@ struct Config {
   struct Device device;
   struct Time time;
   struct Screen screen;
-  struct Iot iot[32];
+  struct Iot iot[8];
   int iotList;
 };
 
-extern bool loadConfiguration(Config &config, File &file, int jsonSize);
+extern bool loadConfiguration(Config &config, File &file, int configSize);

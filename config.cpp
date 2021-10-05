@@ -1,10 +1,10 @@
 #include "config.h"
 
 // Function to load the configuration into the Config struct
-bool loadConfiguration(Config &config, File &file, int jsonSize) {
+bool loadConfiguration(Config &config, File &file, int configSize) {
 
   // Initialize a json document and deserialize the configuration file
-  DynamicJsonDocument doc(jsonSize);
+  DynamicJsonDocument doc(configSize);
   DeserializationError error = deserializeJson(doc, file);
   if (error) {
     Serial.print("Error during config deserialization: ");
