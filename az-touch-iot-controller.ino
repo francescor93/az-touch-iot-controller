@@ -27,7 +27,6 @@
   struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
   int configSize = 2048;
   int mqttSize = 512;
-  const int maxDeviceTypes = 8;
   const int maxDevices = 8;
   const char* filename = "/config.txt";
   bool debug = true;

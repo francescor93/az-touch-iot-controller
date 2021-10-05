@@ -1,3 +1,7 @@
+/***** Advanced Configuration *****/
+  const int maxDeviceTypes = 8;
+/***** Advanced Configuration *****/
+
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
 
@@ -77,7 +81,7 @@ struct Config {
   struct Device device;
   struct Time time;
   struct Screen screen;
-  struct Iot iot[8];
+  struct Iot iot[maxDeviceTypes];
   int iotList;
 };
 
