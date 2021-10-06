@@ -332,6 +332,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     else {
       strlcpy(device.status, iotObj["status"], sizeof(device.status));
     }
+    strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
+    device.color = iotObj["color"] | -1;
     currentDevices.iot[i] = device;
     i += 1;
   }
@@ -625,12 +627,15 @@ void drawIotScreen(int currentScreen) {
   // Calculate the lesser of the total number of received devices and the total number of displayable cells
   int limit = min(currentDevices.iotList, maxCells);
 
-  // Look for the device type image
-  int imgIndex = getImageIndex(config.iot[currentScreen].icon);
-  bool hasImage = imgIndex > -1;
-
   // For each real IoT device received
   for (int i = 0; i < limit; i++) {
+
+      // Look for the device image
+      int imgIndex = -1;
+      imgIndex = getImageIndex(currentDevices.iot[minIot].icon);
+      if (imgIndex == -1) {
+        imgIndex = getImageIndex(config.iot[currentScreen].icon);
+      }
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
     if ((i == (limit - 1)) && (minIot < (currentDevices.iotList - 1))) {
@@ -639,7 +644,7 @@ void drawIotScreen(int currentScreen) {
     else {
 
       // If an image is available show it together with the name, otherwise show only the center-aligned name
-      if (hasImage) {
+      if (imgIndex > -1) {
         updateCell(currentCell, imgIndex);
         updateCell(currentCell, String(currentDevices.iot[minIot].name), 0, 40);
       }
@@ -747,7 +752,9 @@ void executeCellAction(int cellNumber) {
     const char* templateTopic = config.iot[currentScreen].topic.statusRequest;
     if (strcmp(templateTopic, "") != 0) {
       char topic[64];
-      sprintf(topic, templateTopic, currentDevices.iot[currentElement - 1].id);
+      char id[8];
+      sprintf(id, "%d", currentDevices.iot[currentElement - 1].id);
+      sprintf(topic, templateTopic, id);
       client.publish(topic, "");
       currentScreen = -2;
       drawProgress(50, "Loading statuses");
@@ -794,9 +801,13 @@ void reconnect() {
       i += 10;
       if (client.connect(mqttClientID, config.mqtt.user, config.mqtt.password)) {
 
-        // Subscribe to each "listResponse" topic
+        // Subscribe to each "*Response" topic
         for (int i = 0; i < config.iotList; i++) {
           client.subscribe(config.iot[i].topic.listResponse);
+          char topic[64];
+          const char* templateTopic = config.iot[i].topic.statusResponse;
+          sprintf(topic, templateTopic, "+");
+          client.subscribe(topic);
         }
 
         // Increase buffer size
