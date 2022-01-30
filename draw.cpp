@@ -7,8 +7,9 @@
 #ifdef ESP8266
   #include <MiniGrafx.h>
   #include <ILI9341_SPI.h>
-  #include "fonts.h"
 #endif
+#include "DejaVu_Sans_10.h"
+#include "DejaVu_Sans_Bold_12.h"
 
 // Define the appropriate pins
 #ifdef ESP8266
@@ -76,13 +77,21 @@ void displaySetColor(uint16_t color) {
   #endif
 }
 void displayFontTitle() {
+  #ifdef ESP32
+    gfx.setFreeFont(&DejaVu_Sans_Bold_12);
+  #endif
   #ifdef ESP8266
-    gfx.setFont(ArialRoundedMTBold_14);
+    //gfx.setFont(ArialRoundedMTBold_14);
+    gfx.setFont(DejaVu_Sans_Bold_12);
   #endif
 }
 void displayFontText() {
+  #ifdef ESP32
+    gfx.setFreeFont(&DejaVu_Sans_10);
+  #endif
   #ifdef ESP8266
-    gfx.setFont(ArialMT_Plain_10);
+    //gfx.setFont(ArialMT_Plain_10);
+    gfx.setFont(DejaVu_Sans_10);
   #endif
 }
 void displayAlignCenter() {

@@ -40,7 +40,6 @@
 
 // Include local files
 #include "TouchControllerWS.h"
-#include "fonts.h"
 #include "config.h"
 #include "draw.h"
 #include "icons.cpp"
@@ -420,7 +419,7 @@ void calibrationCallback(int16_t x, int16_t y) {
 // Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
-  // Set the background and center-aligned Arial 14 font
+  // Set the background and title font
   displayFill(config.screen.colors.mainBackground);
   displayFontTitle();
   displayAlignCenter();
