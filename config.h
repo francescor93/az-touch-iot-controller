@@ -2,7 +2,13 @@
   const int maxDeviceTypes = 8;
 /***** Advanced Configuration *****/
 
-#include <ESP8266WiFi.h>
+#ifdef ESP32
+  #include <WiFi.h>
+  #include "FS.h"
+#endif
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+#endif
 #include <ArduinoJson.h>
 
 struct Wifi {

@@ -1,34 +1,30 @@
 #include "TouchControllerWS.h"
+#ifdef ESP32
+  #include "FS.h"
+  #include "SPIFFS.h"
+#endif
 
 TouchControllerWS::TouchControllerWS(XPT2046_Touchscreen *touchScreen) {
   this->touchScreen = touchScreen;
 }
   
 bool TouchControllerWS::loadCalibration() {
-  // always use this to "mount" the filesystem
   bool result = SPIFFS.begin();
-
-  // this opens the file "f.txt" in read-mode
-  File f = SPIFFS.open("/calibration.txt", "r");
-
-  if (!f) {
+  if (!SPIFFS.exists("/calibration.txt")) {
     return false;
-  } else {
-
-      //Lets read line by line from the file
-      String dxStr = f.readStringUntil('\n');
-      String dyStr = f.readStringUntil('\n');
-      String axStr = f.readStringUntil('\n');
-      String ayStr = f.readStringUntil('\n');
-
-      dx = dxStr.toFloat();
-      dy = dyStr.toFloat();
-      ax = axStr.toInt();
-      ay = ayStr.toInt();
-
   }
-  f.close();
-
+  else {
+    File f = SPIFFS.open("/calibration.txt", "r");
+    String dxStr = f.readStringUntil('\n');
+    String dyStr = f.readStringUntil('\n');
+    String axStr = f.readStringUntil('\n');
+    String ayStr = f.readStringUntil('\n');
+    dx = dxStr.toFloat();
+    dy = dyStr.toFloat();
+    ax = axStr.toInt();
+    ay = ayStr.toInt();
+    f.close();
+  }
 }
 
 bool TouchControllerWS::saveCalibration() {

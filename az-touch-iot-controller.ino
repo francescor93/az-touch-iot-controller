@@ -16,37 +16,48 @@
 // Include the necessary libraries
 #include <Arduino.h>
 #include <SPI.h>
-#include <ESP8266WiFi.h>
+#ifdef ESP32
+  #include <WiFi.h>
+#endif
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+#endif
 #include <PubSubClient.h>
-#include <XPT2046_Touchscreen.h>
-#include <MiniGrafx.h>
-#include <ILI9341_SPI.h>
 #include <simpleDSTadjust.h>
 #undef min // This is essential to avoid the compilation error "expected unqualified-id before '(' token" when including the ArduinoJson library
 #include <ArduinoJson.h>
 #include <SD.h>
-#include "ArialRounded.h"
-#include "TouchControllerWS.h"
-#include "config.h"
-#include "icons.cpp"
 
 /***** Advanced Configuration *****/
   struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
   struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
   int configSize = 2395;
-  int mqttSize = 512;
+  int mqttSize = 256;
   const int maxDevices = 8;
   const char* filename = "/config.txt";
   bool debug = true;
 /***** Advanced Configuration *****/
 
+// Include local files
+#include "TouchControllerWS.h"
+#include "fonts.h"
+#include "config.h"
+#include "draw.h"
+#include "icons.cpp"
+
 // Define the pins used by the system
-#define TFT_DC D2
-#define TFT_CS D1
-#define TFT_LED D8
-#define TOUCH_CS D3
-#define TOUCH_IRQ D4
-#define SD_CS D0
+#ifdef ESP32
+  #define TFT_LED 15
+  #define TOUCH_CS 14
+  #define TOUCH_IRQ 27
+  #define SD_CS 21
+#endif
+#ifdef ESP8266
+  #define TFT_LED D8
+  #define TOUCH_CS D3
+  #define TOUCH_IRQ D4
+  #define SD_CS D0
+#endif
 
 // Initialize the variables for the device
 const char* DEVICE = "TouchController";
@@ -54,16 +65,10 @@ const char* DELIMITER = "/";
 
 // Define the appearance of the screen
 #define HAVE_TOUCHPAD
-int BITS_PER_PIXEL = 2; // 2^2 =  4 colors
-uint16_t palette[] = {
-  ILI9341_BLACK, // 0
-  ILI9341_WHITE, // 1
-  ILI9341_BLUE, //2
-  ILI9341_YELLOW // 3
-};
 
 // Initialize the variables used by the sketch
 int currentScreen;
+int lastDrawnScreen;
 int currentPage;
 unsigned long int lastTouch;
 
@@ -78,9 +83,8 @@ struct Statuses {
 struct IotDevice {
   int id;
   char name[32];
-  char status[32];
   char icon[16];
-  int color;
+  char color[8];
 };
 struct Devices {
   IotDevice iot[maxDevices];
@@ -94,10 +98,6 @@ extern void callback(char* topic, byte* payload, unsigned int length);
 // Create a wifi client and bind the MQTT client
 WiFiClient wifiClient;
 PubSubClient client("127.0.0.1", 1883, callback, wifiClient); // Using a fake address, because configuration hasn't loaded yet
-
-// Initialize the LCD screen
-ILI9341_SPI tft = ILI9341_SPI(TFT_CS, TFT_DC);
-MiniGrafx gfx = MiniGrafx(&tft, BITS_PER_PIXEL, palette);
 
 // Initialize touch detection and its calibration
 XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
@@ -126,11 +126,11 @@ void setup() {
 
   // Start the LCD display and print a message if debug is true
   pinMode(TFT_LED, OUTPUT);
-  digitalWrite(TFT_LED, HIGH);
-  gfx.init();
-  gfx.setRotation(config.screen.landscape ? 3 : 2);
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.commit();
+  lcdOn();
+  displayInit();
+  displaySetRotation(config.screen.landscape ? 3 : 2);
+  displayFill(config.screen.colors.mainBackground);
+  displayCommit();
   if (debug) {
     Serial.println("LCD initialized");
   }
@@ -192,6 +192,9 @@ void setup() {
       Serial.println("Configuration copied to SPIFFS memory");
     }
   }
+  else {
+    Serial.println("No file");
+  }
 
   // Try to open the file and if it doesn't exist write it on the screen and print a message if debug is true
   File file = SPIFFS.open(filename, "r");
@@ -216,7 +219,7 @@ void setup() {
   file.close();
 
   // Set the correct screen rotation
-  gfx.setRotation(config.screen.landscape ? 3 : 2);
+  displaySetRotation(config.screen.landscape ? 3 : 2);
 
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
@@ -236,6 +239,7 @@ void setup() {
   // Set the home screen to show
   currentScreen = -1;
   currentPage = 1;
+  lastDrawnScreen = -2;
 }
 
 // Loop function, performed cyclically as long as the device is active
@@ -256,13 +260,18 @@ void loop() {
     drawHeader();
 
     // Show the screen we need based on the currentScreen variable
-    if (currentScreen == -1) {
-      drawHome();
+    #ifdef ESP32
+    if (lastDrawnScreen != currentScreen) {
+    #endif
+      if (currentScreen == -1) {
+        drawHome();
+      }
+      else if (currentScreen >= 0) {
+        drawIotScreen(currentScreen);
+      }
+    #ifdef ESP32
     }
-
-    else if (currentScreen >= 0) {
-      drawIotScreen(currentScreen);
-    }
+    #endif
   }
 
   // When a touch is detected, identify the touched point
@@ -270,7 +279,7 @@ void loop() {
     TS_Point p = touchController.getPoint();
 
     // If the screen was already on
-    if (digitalRead(TFT_LED) == HIGH) {
+    if (isLcdOn()) {
 
       // Get the cell touched
       int cellNumber = calculateTouchedCell(p.x, p.y);
@@ -280,21 +289,21 @@ void loop() {
     }
 
     // Make sure the backlight is on
-    digitalWrite(TFT_LED, HIGH);
+    lcdOn();
 
     // Update the last touch time
     lastTouch = millis();
   }
 
   // If the screen has been on for too long without touching, turn it off and return to the home screen
-  if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
-    digitalWrite(TFT_LED, LOW);
+  if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (isLcdOn())) {
+    lcdOff();
     currentScreen = -1;
     currentPage = 1;
   }
 
   // Write the created data on the screen
-  gfx.commit();
+  displayCommit();
 
   // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
@@ -326,14 +335,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
     IotDevice device;
     device.id = iotObj["id"];
     strlcpy(device.name, iotObj["name"], sizeof(device.name));
-    if (iotObj["status"].is<int>()) {
+    /*if (iotObj["status"].is<int>()) {
       itoa(iotObj["status"], device.status, 10);
     }
     else {
       strlcpy(device.status, iotObj["status"], sizeof(device.status));
-    }
+    }*/
     strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
-    device.color = iotObj["color"] | -1;
+    strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
     currentDevices.iot[i] = device;
     i += 1;
   }
@@ -353,69 +362,101 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
   // Make sure the backlight is on
-  digitalWrite(TFT_LED, HIGH);
+  lcdOn();
 
   // Update the last touch time
   lastTouch = millis();
+}
+
+// Function to turn on the touchscreen
+void lcdOn() {
+  #ifdef ESP32
+    digitalWrite(TFT_LED, LOW);
+  #endif
+  #ifdef ESP8266
+    digitalWrite(TFT_LED, HIGH);
+  #endif
+}
+
+// Function to turn off the touchscreen
+void lcdOff() {
+  #ifdef ESP32
+    digitalWrite(TFT_LED, HIGH);
+  #endif
+  #ifdef ESP8266
+    digitalWrite(TFT_LED, LOW);
+  #endif
+}
+
+// Function to check if the touchscreen is on
+bool isLcdOn() {
+  bool lcdStatus = digitalRead(TFT_LED);
+  #ifdef ESP32
+    return (lcdStatus == HIGH) ? false : true;
+  #endif
+  #ifdef ESP8266
+    return (lcdStatus == HIGH) ? true : false;
+  #endif
 }
 
 // Functions to calibrate the touchscreen at first power up
 void calibrateTouchScreen() {
   touchController.startCalibration(&calibration);
   while (!touchController.isCalibrationFinished()) {
-    gfx.fillBuffer(0);
-    gfx.setColor(1);
-    gfx.setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx.drawString(120, 160, "Please calibrate\ntouch screen by\ntouch point");
+    displayFill(0);
+    displayAlignCenter();
+    displaySetColor(1);
+    displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
     touchController.continueCalibration();
-    gfx.commit();
+    displayCommit();
     yield();
   }
   touchController.saveCalibration();
 }
 void calibrationCallback(int16_t x, int16_t y) {
-  gfx.setColor(1);
-  gfx.fillCircle(x, y, 10);
+  displayFillCircle(x, y, 10, palette[1]);
 }
 
 // Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
   // Set the background and center-aligned Arial 14 font
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.setFont(ArialRoundedMTBold_14);
-  gfx.setTextAlignment(TEXT_ALIGN_CENTER);
+  displayFill(config.screen.colors.mainBackground);
+  displayFontTitle();
+  displayAlignCenter();
 
   // Create the logo
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.drawXbm(20, 5, 200, 80, mainLogo);
+  displayDrawBitmap(mainLogo, 20, 5, 200, 80, config.screen.colors.secondaryForeground);
 
   // Create the url
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawString(120, 85, "https://www.regafamilysite.ga");
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite("https://www.regafamilysite.ga", 120, 85);
 
   // Create the text provided
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.drawString(120, 146, text);
+  displaySetColor(config.screen.colors.secondaryForeground);
+  displayWrite(text, 120, 146);
 
   // Create the progress bar
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawRect(10, 168, 240 - 20, 15);
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.fillRect(12, 170, 216 * percentage / 100, 11);
+  displayDrawRect(10, 168, 240 - 20, 15, config.screen.colors.mainForeground);
+  displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
-  gfx.commit();
+  displayCommit();
+
+  // Remember that the last screen drawn was loading screen 
+  lastDrawnScreen = -2;
 }
 
 // Function to generate the header bar with time and signal quality
 void drawHeader() {
 
-  // Set the background and left-aligned Arial 10 font
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.setFont(ArialMT_Plain_10);
-  gfx.setTextAlignment(TEXT_ALIGN_LEFT);
+  // Set the background
+  #ifdef ESP32
+    displayFillRect(0, 0, config.screen.width, config.screen.headerHeight, config.screen.colors.mainBackground);
+  #endif
+  #ifdef ESP8266
+    displayFill(config.screen.colors.mainBackground);
+  #endif
 
   // Get the current time
   char time_str[11];
@@ -425,7 +466,10 @@ void drawHeader() {
 
   // Create the time
   sprintf(time_str, "%02d:%02d",timeinfo->tm_hour, timeinfo->tm_min);
-  gfx.drawString(3, 2, time_str);
+  displayFontText();
+  displayAlignLeft();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(time_str, 3, 2);
 
   // Calculate the quality of the wifi signal as a percentage
   int32_t dbm = WiFi.RSSI();
@@ -441,22 +485,25 @@ void drawHeader() {
   }
 
   // Create signal quality
-  gfx.drawString(205, 2, String(quality) + "%");
-  for (int8_t i = 0; i < 4; i++) {
+  displayWrite(String(quality) + "%", 205, 2);
+  /*for (int8_t i = 0; i < 4; i++) {
     for (int8_t j = 0; j < 2 * (i + 1); j++) {
       if (quality > i * 25 || j == 0) {
         gfx.setPixel(230 + 2 * i, 11 - j);
       }
     }
-  }
+  }*/
 }
 
 // Function to create a grid consisting of the configured number of rows and columns
 void drawGrid() {
 
   // Create the separator between header and table
-  gfx.drawHorizontalLine(0, config.screen.headerHeight, config.screen.grid.width);
-
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
+  displayDrawHLine(0, config.screen.headerHeight, config.screen.grid.width, config.screen.colors.mainForeground);
+  
   // Create the columns
   int startX = 0;
   while (true) {
@@ -464,7 +511,7 @@ void drawGrid() {
     if (startX > config.screen.grid.width) {
       break;
     }
-    gfx.drawVerticalLine(startX, config.screen.headerHeight, config.screen.grid.height);
+    displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
   }
 
   // Create the rows
@@ -474,7 +521,7 @@ void drawGrid() {
     if (startY > config.screen.grid.width) {
       break;
     }
-    gfx.drawHorizontalLine(0, startY, config.screen.grid.width);
+    displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
   }
 }
 
@@ -498,7 +545,7 @@ int getImageIndex(char* name) {
   return -1;
 }
 
-// Functions to update the contents of a cell with text or an image
+// Functions to update the contents of a cell with text, image or color
 void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
 
   // Get the row and column number from the cell number
@@ -516,11 +563,11 @@ void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
   int centerX = config.screen.grid.cellWidth / 2 + minX;
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
-  // Create the text provided
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.setFont(ArialMT_Plain_10);
-  gfx.setTextAlignment(TEXT_ALIGN_CENTER_BOTH);
-  gfx.drawString(centerX + offsetX, centerY + offsetY, text);
+  // Write the text provided
+  displayFontText();
+  displayAlignCenterMiddle();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(text, centerX + offsetX, centerY + offsetY);
 }
 void updateCell(int cellNumber, int index) {
 
@@ -539,9 +586,31 @@ void updateCell(int cellNumber, int index) {
   int centerX = config.screen.grid.cellWidth / 2 + minX;
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
-  // Create the image provided
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, myIcons[index]);
+  // Draw the image provided
+  displayDrawBitmap(myIcons[index], centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, config.screen.colors.mainForeground);
+}
+void updateCell(int cellNumber, char* color) {
+
+  // Get the row and column number from the cell number
+  int row = 0;
+  int col = 0;
+  cellToGrid(cellNumber, row, col);
+
+  // Get the coordinates of the cell vertices
+  int minX = config.screen.grid.cellWidth * (col - 1);
+  int maxX = minX + config.screen.grid.cellWidth;
+  int minY = config.screen.grid.cellHeight * (row - 1) + config.screen.headerHeight;
+  int maxY = minY + config.screen.grid.cellHeight;
+
+  // Fill with the color provided
+  int i = 0;
+  for (char* colorName : colorNames) {
+    if (strcmp(colorName, color) == 0) {
+      break;
+    }
+    i++;
+  }
+  displayFillRect(minX, minY, config.screen.grid.cellWidth, config.screen.grid.cellHeight, palette[i]);
 }
 
 // Function to show the main screen with the grid and icons of the different cells
@@ -599,6 +668,9 @@ void drawHome() {
     currentCell++;
     minIot++;
   }
+
+  // Remember that the last screen drawn was home screen
+  lastDrawnScreen = -1;
 }
 
 void drawIotScreen(int currentScreen) {
@@ -643,6 +715,11 @@ void drawIotScreen(int currentScreen) {
     }
     else {
 
+      // If a background color is available, fill the cell
+      if (strcmp(currentDevices.iot[minIot].color, "") != 0) {
+        updateCell(currentCell, currentDevices.iot[minIot].color);
+      }
+
       // If an image is available show it together with the name, otherwise show only the center-aligned name
       if (imgIndex > -1) {
         updateCell(currentCell, imgIndex);
@@ -657,6 +734,9 @@ void drawIotScreen(int currentScreen) {
     currentCell++;
     minIot++;
   }
+
+  // Remember that the last screen drawn was IoT screen 
+  lastDrawnScreen = currentScreen;
 }
 
 // Function to obtain the number of the cell touched, given the coordinates of the point

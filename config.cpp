@@ -1,4 +1,7 @@
 #include "config.h"
+#ifdef ESP32
+  #include "FS.h"
+#endif
 
 // Function to load the configuration into the Config struct
 bool loadConfiguration(Config &config, File &file, int configSize) {
