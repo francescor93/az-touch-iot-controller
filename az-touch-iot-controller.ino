@@ -609,7 +609,7 @@ void updateCell(int cellNumber, char* color) {
     }
     i++;
   }
-  displayFillRect(minX, minY, config.screen.grid.cellWidth, config.screen.grid.cellHeight, palette[i]);
+  displayFillRect(minX, minY, config.screen.grid.cellWidth, config.screen.grid.cellHeight, i);
 }
 
 // Function to show the main screen with the grid and icons of the different cells
@@ -714,10 +714,12 @@ void drawIotScreen(int currentScreen) {
     }
     else {
 
-      // If a background color is available, fill the cell
-      if (strcmp(currentDevices.iot[minIot].color, "") != 0) {
-        updateCell(currentCell, currentDevices.iot[minIot].color);
-      }
+      // Only on ESP32 (because of RAM limitations), if a background color is available, fill the cell
+      #ifdef ESP32
+        if (strcmp(currentDevices.iot[minIot].color, "") != 0) {
+          updateCell(currentCell, currentDevices.iot[minIot].color);
+        }
+      #endif
 
       // If an image is available show it together with the name, otherwise show only the center-aligned name
       if (imgIndex > -1) {
