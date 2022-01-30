@@ -7,7 +7,7 @@
 TouchControllerWS::TouchControllerWS(XPT2046_Touchscreen *touchScreen) {
   this->touchScreen = touchScreen;
 }
-  
+
 bool TouchControllerWS::loadCalibration() {
   bool result = SPIFFS.begin();
   if (!SPIFFS.exists("/calibration.txt")) {

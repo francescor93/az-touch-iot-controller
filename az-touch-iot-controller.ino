@@ -443,7 +443,7 @@ void drawProgress(uint8_t percentage, String text) {
   // Write the result
   displayCommit();
 
-  // Remember that the last screen drawn was loading screen 
+  // Remember that the last screen drawn was loading screen
   lastDrawnScreen = -2;
 }
 
@@ -503,7 +503,7 @@ void drawGrid() {
     displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
   #endif
   displayDrawHLine(0, config.screen.headerHeight, config.screen.grid.width, config.screen.colors.mainForeground);
-  
+
   // Create the columns
   int startX = 0;
   while (true) {
@@ -735,7 +735,7 @@ void drawIotScreen(int currentScreen) {
     minIot++;
   }
 
-  // Remember that the last screen drawn was IoT screen 
+  // Remember that the last screen drawn was IoT screen
   lastDrawnScreen = currentScreen;
 }
 

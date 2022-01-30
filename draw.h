@@ -1,6 +1,6 @@
 #ifndef DRAWER
   #define DRAWER
-  
+
   // Include the appropriate library
   #ifdef ESP32
     #include <TFT_eSPI.h>
@@ -9,13 +9,13 @@
     #include <MiniGrafx.h>
     #include <ILI9341_SPI.h>
   #endif
-  
+
   // Define the appropriate pins
   #ifdef ESP8266
     #define TFT_DC D2
     #define TFT_CS D1
   #endif
-  
+
   // Initialize the appropriate library
   #ifdef ESP32
     extern TFT_eSPI gfx;
