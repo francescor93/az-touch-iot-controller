@@ -485,13 +485,13 @@ void drawHeader() {
 
   // Create signal quality
   displayWrite(String(quality) + "%", 205, 2);
-  /*for (int8_t i = 0; i < 4; i++) {
+  for (int8_t i = 0; i < 4; i++) {
     for (int8_t j = 0; j < 2 * (i + 1); j++) {
       if (quality > i * 25 || j == 0) {
-        gfx.setPixel(230 + 2 * i, 11 - j);
+        displayDrawPixel(230 + 2 * i, 11 - j, config.screen.colors.mainForeground);
       }
     }
-  }*/
+  }
 }
 
 // Function to create a grid consisting of the configured number of rows and columns

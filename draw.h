@@ -40,6 +40,7 @@
   extern void displayAlignCenterMiddle();
   extern void displayAlignLeft();
   extern void displayWrite(String text, int x, int y);
+  extern void displayDrawPixel(int x, int y, uint16_t color);
   extern void displayFillCircle(int16_t x, int16_t y, int radius, uint16_t color);
   extern void displayDrawBitmap(uint8_t *content, int x, int y, int width, int height, uint16_t color);
   extern void displayDrawRect(int x, int y, int width, int height, uint16_t color);

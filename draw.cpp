@@ -126,6 +126,15 @@ void displayWrite(String text, int x, int y) {
     gfx.drawString(x, y, text);
   #endif
 }
+void displayDrawPixel(int x, int y, uint16_t color) {
+  #ifdef ESP32
+    gfx.drawPixel(x, y, palette[color]);
+  #endif
+  #ifdef ESP8266
+    gfx.setColor(color);
+    gfx.setPixel(x, y);
+  #endif
+}
 void displayFillCircle(int16_t x, int16_t y, int radius, uint16_t color) {
   #ifdef ESP32
     gfx.fillCircle(x, y, radius, palette[color]);
