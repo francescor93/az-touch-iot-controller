@@ -19,7 +19,9 @@
 
 // Initialize the appropriate library
 #ifdef ESP32
-  TFT_eSPI gfx = TFT_eSPI();
+  TFT_eSPI tft = TFT_eSPI();
+  TFT_eSprite gfx = TFT_eSprite(&tft);
+  int spriteRotation = 180;
 #endif
 #ifdef ESP8266
   ILI9341_SPI tft = ILI9341_SPI(TFT_CS, TFT_DC);
@@ -49,11 +51,25 @@
 #endif
 
 // Define display helpers
-void displayInit() {
-  gfx.init();
+void displayInit(int width, int height) {
+  #ifdef ESP32
+    tft.init();
+    tft.setPivot(width/2, height/2);
+    gfx.setColorDepth(8);
+    gfx.createSprite(width, height);
+    gfx.fillSprite(TFT_BLACK);
+  #endif
+  #ifdef ESP8266
+    gfx.init();
+  #endif
 }
 void displaySetRotation(int pos) {
-  gfx.setRotation(pos);
+  #ifdef ESP32
+    spriteRotation = (pos == 3) ? 270 : 180;
+  #endif
+  #ifdef ESP8266
+    gfx.setRotation(pos);
+  #endif
 }
 void displayFill(uint16_t color) {
   #ifdef ESP32
@@ -63,7 +79,13 @@ void displayFill(uint16_t color) {
     gfx.fillBuffer(color);
   #endif
 }
-void displayCommit() {
+void displayCommit(int width, int height) {
+  #ifdef ESP32
+    gfx.pushRotated(spriteRotation);
+    gfx.deleteSprite();
+    gfx.createSprite(width, height);
+    gfx.fillSprite(TFT_BLACK);
+  #endif
   #ifdef ESP8266
     gfx.commit();
   #endif
@@ -81,7 +103,6 @@ void displayFontTitle() {
     gfx.setFreeFont(&DejaVu_Sans_Bold_12);
   #endif
   #ifdef ESP8266
-    //gfx.setFont(ArialRoundedMTBold_14);
     gfx.setFont(DejaVu_Sans_Bold_12);
   #endif
 }
@@ -90,7 +111,6 @@ void displayFontText() {
     gfx.setFreeFont(&DejaVu_Sans_10);
   #endif
   #ifdef ESP8266
-    //gfx.setFont(ArialMT_Plain_10);
     gfx.setFont(DejaVu_Sans_10);
   #endif
 }

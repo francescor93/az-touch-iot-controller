@@ -67,7 +67,6 @@ const char* DELIMITER = "/";
 
 // Initialize the variables used by the sketch
 int currentScreen;
-int lastDrawnScreen;
 int currentPage;
 unsigned long int lastTouch;
 
@@ -116,8 +115,10 @@ void setup() {
     Serial.println("Serial started");
   }
 
-  // Set default orientation and background. They will be updated as soon as the configuration is loaded.
+  // Set default size, orientation and background. They will be updated as soon as the configuration is loaded.
   config.screen.landscape = false;
+  config.screen.width = 240;
+  config.screen.height = 320;
   config.screen.colors.mainBackground = 0;
   config.screen.colors.mainForeground = 1;
   config.screen.colors.secondaryBackground = 2;
@@ -126,10 +127,10 @@ void setup() {
   // Start the LCD display and print a message if debug is true
   pinMode(TFT_LED, OUTPUT);
   lcdOn();
-  displayInit();
+  displayInit(config.screen.width, config.screen.height);
   displaySetRotation(config.screen.landscape ? 3 : 2);
   displayFill(config.screen.colors.mainBackground);
-  displayCommit();
+  displayCommit(config.screen.width, config.screen.height);
   if (debug) {
     Serial.println("LCD initialized");
   }
@@ -219,7 +220,7 @@ void setup() {
 
   // Set the correct screen rotation
   displaySetRotation(config.screen.landscape ? 3 : 2);
-
+  
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
   WiFi.begin(config.wifi.ssid, config.wifi.password);
@@ -238,7 +239,6 @@ void setup() {
   // Set the home screen to show
   currentScreen = -1;
   currentPage = 1;
-  lastDrawnScreen = -2;
 }
 
 // Loop function, performed cyclically as long as the device is active
@@ -259,18 +259,12 @@ void loop() {
     drawHeader();
 
     // Show the screen we need based on the currentScreen variable
-    #ifdef ESP32
-    if (lastDrawnScreen != currentScreen) {
-    #endif
-      if (currentScreen == -1) {
-        drawHome();
-      }
-      else if (currentScreen >= 0) {
-        drawIotScreen(currentScreen);
-      }
-    #ifdef ESP32
+    if (currentScreen == -1) {
+      drawHome();
     }
-    #endif
+    else if (currentScreen >= 0) {
+      drawIotScreen(currentScreen);
+    }
   }
 
   // When a touch is detected, identify the touched point
@@ -302,7 +296,7 @@ void loop() {
   }
 
   // Write the created data on the screen
-  displayCommit();
+  displayCommit(config.screen.width, config.screen.height);
 
   // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
@@ -407,7 +401,7 @@ void calibrateTouchScreen() {
     displaySetColor(1);
     displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
     touchController.continueCalibration();
-    displayCommit();
+    displayCommit(config.screen.width, config.screen.height);
     yield();
   }
   touchController.saveCalibration();
@@ -440,10 +434,7 @@ void drawProgress(uint8_t percentage, String text) {
   displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
-  displayCommit();
-
-  // Remember that the last screen drawn was loading screen
-  lastDrawnScreen = -2;
+  displayCommit(config.screen.width, config.screen.height);
 }
 
 // Function to generate the header bar with time and signal quality
@@ -667,9 +658,6 @@ void drawHome() {
     currentCell++;
     minIot++;
   }
-
-  // Remember that the last screen drawn was home screen
-  lastDrawnScreen = -1;
 }
 
 void drawIotScreen(int currentScreen) {
@@ -735,9 +723,6 @@ void drawIotScreen(int currentScreen) {
     currentCell++;
     minIot++;
   }
-
-  // Remember that the last screen drawn was IoT screen
-  lastDrawnScreen = currentScreen;
 }
 
 // Function to obtain the number of the cell touched, given the coordinates of the point

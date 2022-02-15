@@ -18,7 +18,8 @@
 
   // Initialize the appropriate library
   #ifdef ESP32
-    extern TFT_eSPI gfx;
+    extern TFT_eSPI tft;
+    extern TFT_eSprite gfx;
   #endif
   #ifdef ESP8266
     extern ILI9341_SPI tft;
@@ -29,10 +30,10 @@
   extern uint16_t palette[];
 
   // Define display helpers
-  extern void displayInit();
+  extern void displayInit(int width, int height);
   extern void displaySetRotation(int pos);
   extern void displayFill(uint16_t color);
-  extern void displayCommit();
+  extern void displayCommit(int width, int height);
   extern void displaySetColor(uint16_t color);
   extern void displayFontTitle();
   extern void displayFontText();
