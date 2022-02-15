@@ -311,54 +311,58 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print("With payload: "); Serial.println((char*)payload);
   }
 
-  // Convert the received string to an array
-  DynamicJsonDocument devices(mqttSize);
-  DeserializationError error = deserializeJson(devices, (char*)payload);
-  if (error) {
-    if (debug) {
-      Serial.print("Error during MQTT deserialization: ");
-      Serial.println(error.c_str());
-    }
-    return;
-  }
+  // Only proceed if on a loading screen
+  if (currentScreen == -2) {
 
-  // Save each element of the array as a device in the appropriate struct
-  int i = 0;
-  for (JsonObject iotObj : devices.as<JsonArray>()) {
-    IotDevice device;
-    device.id = iotObj["id"];
-    strlcpy(device.name, iotObj["name"], sizeof(device.name));
-    /*if (iotObj["status"].is<int>()) {
-      itoa(iotObj["status"], device.status, 10);
-    }
-    else {
-      strlcpy(device.status, iotObj["status"], sizeof(device.status));
-    }*/
-    strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
-    strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
-    currentDevices.iot[i] = device;
-    i += 1;
-  }
-  currentDevices.iotList = i;
-
-  // Set screen and page based on the received topic and print a message if debug is true
-  int iotIndex;
-  for (int i = 0; i < config.iotList; i++) {
-    if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
-      currentScreen = i;
-      currentPage = 1;
+    // Convert the received string to an array
+    DynamicJsonDocument devices(mqttSize);
+    DeserializationError error = deserializeJson(devices, (char*)payload);
+    if (error) {
       if (debug) {
-        Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+        Serial.print("Error during MQTT deserialization: ");
+        Serial.println(error.c_str());
       }
-      break;
+      return;
     }
+  
+    // Save each element of the array as a device in the appropriate struct
+    int i = 0;
+    for (JsonObject iotObj : devices.as<JsonArray>()) {
+      IotDevice device;
+      device.id = iotObj["id"];
+      strlcpy(device.name, iotObj["name"], sizeof(device.name));
+      /*if (iotObj["status"].is<int>()) {
+        itoa(iotObj["status"], device.status, 10);
+      }
+      else {
+        strlcpy(device.status, iotObj["status"], sizeof(device.status));
+      }*/
+      strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
+      strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
+      currentDevices.iot[i] = device;
+      i += 1;
+    }
+    currentDevices.iotList = i;
+  
+    // Set screen and page based on the received topic and print a message if debug is true
+    int iotIndex;
+    for (int i = 0; i < config.iotList; i++) {
+      if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
+        currentScreen = i;
+        currentPage = 1;
+        if (debug) {
+          Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+        }
+        break;
+      }
+    }
+  
+    // Make sure the backlight is on
+    lcdOn();
+  
+    // Update the last touch time
+    lastTouch = millis();
   }
-
-  // Make sure the backlight is on
-  lcdOn();
-
-  // Update the last touch time
-  lastTouch = millis();
 }
 
 // Function to turn on the touchscreen
