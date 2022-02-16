@@ -29,10 +29,10 @@
 #include <SD.h>
 
 // Include local files
-#include "TouchControllerWS.h"
-#include "config.h"
-#include "draw.h"
-#include "icons.cpp"
+#include "src/TouchControllerWS.h"
+#include "src/config.h"
+#include "src/draw.h"
+#include "src/icons.cpp"
 
 // Define the pins used by the system
 #ifdef ESP32

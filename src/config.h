@@ -6,7 +6,7 @@
   #include <ESP8266WiFi.h>
 #endif
 #include <ArduinoJson.h>
-#include "advancedconfig.cpp"
+#include "../advancedconfig.cpp"
 
 struct Wifi {
   char ssid[32];
