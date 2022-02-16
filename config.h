@@ -1,7 +1,3 @@
-/***** Advanced Configuration *****/
-  const int maxDeviceTypes = 8;
-/***** Advanced Configuration *****/
-
 #ifdef ESP32
   #include <WiFi.h>
   #include "FS.h"
@@ -10,6 +6,7 @@
   #include <ESP8266WiFi.h>
 #endif
 #include <ArduinoJson.h>
+#include "advancedconfig.cpp"
 
 struct Wifi {
   char ssid[32];

@@ -28,16 +28,6 @@
 #include <ArduinoJson.h>
 #include <SD.h>
 
-/***** Advanced Configuration *****/
-  struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
-  struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
-  int configSize = 2395;
-  int mqttSize = 256;
-  const int maxDevices = 8;
-  const char* filename = "/config.txt";
-  bool debug = true;
-/***** Advanced Configuration *****/
-
 // Include local files
 #include "TouchControllerWS.h"
 #include "config.h"
