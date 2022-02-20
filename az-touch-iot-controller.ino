@@ -265,8 +265,7 @@ void loop() {
       drawIotScreen(currentScreen);
     }
     else if (currentScreen >= 100 && currentScreen < 200) {
-      //drawStatusScreen(currentScreen);
-      Serial.println("STATUS SCREEN");
+      drawStatusScreen(currentScreen);
     }
     else {
       if (debug) {
@@ -724,7 +723,7 @@ void drawHome() {
 void drawIotScreen(int currentScreen) {
   drawGrid();
 
-  // Calculate the maximum number of cells on a page and the maximum number of devices to show
+  // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
 
   // Check if pagination is required
@@ -750,12 +749,12 @@ void drawIotScreen(int currentScreen) {
   // For each real IoT device received
   for (int i = 0; i < limit; i++) {
 
-      // Look for the device image
-      int imgIndex = -1;
-      imgIndex = getImageIndex(currentDevices.iot[minIot].icon);
-      if (imgIndex == -1) {
-        imgIndex = getImageIndex(config.iot[currentScreen].icon);
-      }
+    // Look for the device image
+    int imgIndex = -1;
+    imgIndex = getImageIndex(currentDevices.iot[minIot].icon);
+    if (imgIndex == -1) {
+      imgIndex = getImageIndex(config.iot[currentScreen].icon);
+    }
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
     if ((i == (limit - 1)) && (minIot < (currentDevices.iotList - 1))) {
@@ -783,6 +782,61 @@ void drawIotScreen(int currentScreen) {
     // Increment the current cell number and the current IoT device number
     currentCell++;
     minIot++;
+  }
+}
+
+void drawStatusScreen(int currentScreen) {
+  drawGrid();
+
+  // Calculate the maximum number of cells on a page
+  int maxCells = config.screen.grid.rows * config.screen.grid.cols;
+
+  // Check if pagination is required
+  bool needsPagination = currentStatuses.statusList > maxCells;
+
+  // Define the variable for the cell we are currently updating
+  int currentCell = 1;
+
+  // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
+  if ((needsPagination) && (currentPage > 1)) {
+    updateCell(currentCell, getImageIndex("back"));
+    maxCells--;
+    currentCell++;
+  }
+
+  // Determine which status to view from
+  int minStatus = maxCells * (currentPage - 1);
+  if (currentPage > 2) { minStatus--; }
+
+  // Calculate the lesser of the total number of received statuses and the total number of displayable cells
+  int limit = min(currentStatuses.statusList, maxCells);
+
+  // For each status received
+  for (int i = 0; i < limit; i++) {
+
+    // Look for the device image
+    int imgIndex = -1;
+    imgIndex = getImageIndex(config.iot[currentScreen - 100].icon);
+
+    // If this is the last cell on the page and there are subsequent statuses, show the "Next" icon
+    if ((i == (limit - 1)) && (minStatus < (currentStatuses.statusList - 1))) {
+      updateCell(currentCell, getImageIndex("next"));
+    }
+    else {
+      
+      // If an image is available show it together with the name, otherwise show only the center-aligned name
+      if (imgIndex > -1) {
+        updateCell(currentCell, imgIndex);
+        updateCell(currentCell, String(currentStatuses.status[minStatus].name), 0, 40);
+      }
+      else {
+        updateCell(currentCell, String(currentStatuses.status[minStatus].name));
+      }
+    }
+
+    // Increment the current cell number and the current status number
+    currentCell++;
+    minStatus++;
   }
 }
 
