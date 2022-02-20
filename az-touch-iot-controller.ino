@@ -27,6 +27,7 @@
 #undef min // This is essential to avoid the compilation error "expected unqualified-id before '(' token" when including the ArduinoJson library
 #include <ArduinoJson.h>
 #include <SD.h>
+#include <Regexp.h>
 
 // Include local files
 #include "src/TouchControllerWS.h"
@@ -64,10 +65,6 @@ unsigned long int lastTouch;
 Config config;
 
 // Initialize the struct for individual IoT devices
-struct Statuses {
-  char name[32];
-  char topic[64];
-};
 struct IotDevice {
   int id;
   char name[32];
@@ -79,6 +76,18 @@ struct Devices {
   int iotList;
 };
 Devices currentDevices;
+
+// Initialize the struct for individual IoT device statuses
+struct IotStatus {
+  char name[32];
+  char topic[64];
+  char data[64];
+};
+struct Statuses {
+  IotStatus status[maxDeviceStatuses];
+  int statusList;
+};
+Statuses currentStatuses;
 
 // This line is needed to avoid the compile error for callback function not (yet) defined
 extern void callback(char* topic, byte* payload, unsigned int length);
@@ -210,10 +219,10 @@ void setup() {
 
   // Set the correct screen rotation
   displaySetRotation(config.screen.landscape ? 3 : 2);
-  
+
+  WiFi.begin(config.wifi.ssid, config.wifi.password);
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
-  WiFi.begin(config.wifi.ssid, config.wifi.password);
   client.setServer(config.mqtt.host, 1883);
   reconnect();
 
@@ -252,8 +261,18 @@ void loop() {
     if (currentScreen == -1) {
       drawHome();
     }
-    else if (currentScreen >= 0) {
+    else if (currentScreen >= 0 && currentScreen < 100) {
       drawIotScreen(currentScreen);
+    }
+    else if (currentScreen >= 100 && currentScreen < 200) {
+      //drawStatusScreen(currentScreen);
+      Serial.println("STATUS SCREEN");
+    }
+    else {
+      if (debug) {
+        Serial.println("Unknown screen selected. Returning to home screen.");
+        currentScreen = -1;
+      }
     }
   }
 
@@ -304,9 +323,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Only proceed if on a loading screen
   if (currentScreen == -2) {
 
-    // Convert the received string to an array
-    DynamicJsonDocument devices(mqttSize);
-    DeserializationError error = deserializeJson(devices, (char*)payload);
+    // Set the home screen as a default result
+    currentScreen = -1;
+    currentPage = 1;
+
+    // Convert the received string to an array or return to home in case of error
+    DynamicJsonDocument json(mqttSize);
+    DeserializationError error = deserializeJson(json, (char*)payload);
     if (error) {
       if (debug) {
         Serial.print("Error during MQTT deserialization: ");
@@ -314,42 +337,76 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
       return;
     }
-  
-    // Save each element of the array as a device in the appropriate struct
-    int i = 0;
-    for (JsonObject iotObj : devices.as<JsonArray>()) {
-      IotDevice device;
-      device.id = iotObj["id"];
-      strlcpy(device.name, iotObj["name"], sizeof(device.name));
-      /*if (iotObj["status"].is<int>()) {
-        itoa(iotObj["status"], device.status, 10);
-      }
-      else {
-        strlcpy(device.status, iotObj["status"], sizeof(device.status));
-      }*/
-      strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
-      strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
-      currentDevices.iot[i] = device;
-      i += 1;
-    }
-    currentDevices.iotList = i;
-  
-    // Set screen and page based on the received topic and print a message if debug is true
-    int iotIndex;
-    for (int i = 0; i < config.iotList; i++) {
-      if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
-        currentScreen = i;
-        currentPage = 1;
-        if (debug) {
-          Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+
+    // Check if received topic is a list of devices
+    if (isListTopic(topic)) {
+
+      // Search in the list of device types for the one with the topic corresponding to the one received 
+      for (int i = 0; i < config.iotList; i++) {
+        if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
+          
+          // Save each element of the array as a device in the appropriate struct
+          int j = 0;
+          for (JsonObject iotObj : json.as<JsonArray>()) {
+            IotDevice device;
+            device.id = iotObj["id"];
+            strlcpy(device.name, iotObj["name"], sizeof(device.name));
+            strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
+            strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
+            currentDevices.iot[j] = device;
+            j += 1;
+          }
+          currentDevices.iotList = j;
+
+          // Set screen and page based on the received topic and print a message if debug is true
+          currentScreen = i;
+          currentPage = 1;
+          if (debug) {
+            Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+          }
+          break;
         }
-        break;
       }
     }
-  
+
+    // If it's not a devices list it's a statuses list
+    else {
+      
+      // Search in the list of device types for the one with the topic corresponding to the one received 
+      for (int i = 0; i < config.iotList; i++) {
+        MatchState ms;
+        ms.Target (topic);
+        char match[64];
+        sprintf(match, config.iot[i].topic.statusResponse, ".*");
+        char result = ms.Match (match);
+        if (result == REGEXP_MATCHED) {
+
+          // Save each element of the array as a status in the appropriate struct
+          int j = 0;
+          for (JsonObject iotStatus : json.as<JsonArray>()) {
+            IotStatus status;
+            strlcpy(status.name, iotStatus["name"], sizeof(status.name));
+            strlcpy(status.topic, iotStatus["topic"] | "", sizeof(status.topic));
+            strlcpy(status.data, iotStatus["data"] | "", sizeof(status.data));
+            currentStatuses.status[j] = status;
+            j += 1;
+          }
+          currentStatuses.statusList = j;
+
+          // Set screen and page based on the received topic and print a message if debug is true
+          currentScreen = i + 100;
+          currentPage = 1;
+          if (debug) {
+            Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+          }
+          break;
+        }
+      }
+    }
+
     // Make sure the backlight is on
     lcdOn();
-  
+
     // Update the last touch time
     lastTouch = millis();
   }
@@ -384,6 +441,16 @@ bool isLcdOn() {
   #ifdef ESP8266
     return (lcdStatus == HIGH) ? true : false;
   #endif
+}
+
+// Function to check if received topic is list or status
+bool isListTopic(char* topic) {
+  for (int i = 0; i < config.iotList; i++) {
+    if (strcmp(config.iot[i].topic.listResponse, topic) == 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Functions to calibrate the touchscreen at first power up
