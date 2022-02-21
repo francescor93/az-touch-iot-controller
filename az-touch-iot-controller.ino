@@ -361,7 +361,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
           currentScreen = i;
           currentPage = 1;
           if (debug) {
-            Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+            Serial.print("Received devices topic for IoT: "); Serial.println(config.iot[i].name);
           }
           break;
         }
@@ -396,7 +396,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
           currentScreen = i + 100;
           currentPage = 1;
           if (debug) {
-            Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+            Serial.print("Received statuses topic for IoT: "); Serial.println(config.iot[i].name);
           }
           break;
         }
@@ -966,24 +966,30 @@ void executeCellAction(int cellNumber) {
   int currentElement = minIot + cellNumber;
   if (currentPage > 1) { currentElement--; }
   if (debug) {
-    Serial.print("Touched IoT device "); Serial.println(currentElement);
+    Serial.print("Touched element "); Serial.println(currentElement);
   }
 
   // If the current screen is the home screen, send the device request on the topic associated with the cell, show loading screen and print a message if debug is true
   if (currentScreen == -1) {
+    if (currentElement > config.iotList) {
+      return;
+    }
     const char* topic = config.iot[currentElement - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
       client.publish(topic, "");
       currentScreen = -2;
       drawProgress(50, "Loading devices");
       if (debug) {
-        Serial.print("Sending request to "); Serial.println(topic);
+        Serial.print("Sending home request to "); Serial.println(topic);
       }
     }
   }
   
   // If current screen is one of the devices lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if ((currentScreen >= 0) && (currentScreen < 100)) {
+    if (currentElement > currentDevices.iotList) {
+      return;
+    }
     const char* templateTopic = config.iot[currentScreen].topic.statusRequest;
     if (strcmp(templateTopic, "") != 0) {
       char topic[64];
@@ -994,20 +1000,23 @@ void executeCellAction(int cellNumber) {
       currentScreen = -2;
       drawProgress(50, "Loading statuses");
       if (debug) {
-        Serial.print("Sending request to "); Serial.println(topic);
+        Serial.print("Sending device request to "); Serial.println(topic);
       }
     }
   }
 
   // If current screen is one of the statuses lists, send the command on the topic associated with the cell, show confirmation screen and print a message if debug is true
   if ((currentScreen >= 100) && (currentScreen < 200)) {
+    if (currentElement > currentStatuses.statusList) {
+      return;
+    }
     const char* topic = currentStatuses.status[currentElement - 1].topic;
     const char* data = currentStatuses.status[currentElement - 1].data;
     if (strcmp(topic, "") != 0) {
       client.publish(topic, data);
       drawConfirmation("Command sent");
       if (debug) {
-        Serial.print("Sending request to "); Serial.println(topic);
+        Serial.print("Sending status request to "); Serial.print(topic); Serial.print(" with data "); Serial.println(data);
       }
     }
   }
