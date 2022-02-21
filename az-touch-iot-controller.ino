@@ -497,6 +497,25 @@ void drawProgress(uint8_t percentage, String text) {
   displayCommit(config.screen.width, config.screen.height);
 }
 
+// Function to show the confirmation screen
+void drawConfirmation(String text) {
+  displayCommit(config.screen.width, config.screen.height);
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, 4);
+  #endif
+  #ifdef ESP8266
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
+  displayAlignCenter();
+  displayFontTitle();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(text, config.screen.grid.width / 2, config.screen.grid.height / 2 + config.screen.headerHeight);
+  displayCommit(config.screen.width, config.screen.height);
+  delay(1000);
+  currentScreen = -1;
+  currentPage = 1;
+}
+
 // Function to generate the header bar with time and signal quality
 void drawHeader() {
 
@@ -957,7 +976,8 @@ void executeCellAction(int cellNumber) {
       }
     }
   }
-  // If current screen is one of the device lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
+  
+  // If current screen is one of the devices lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if ((currentScreen >= 0) && (currentScreen < 100)) {
     const char* templateTopic = config.iot[currentScreen].topic.statusRequest;
     if (strcmp(templateTopic, "") != 0) {
@@ -972,7 +992,19 @@ void executeCellAction(int cellNumber) {
         Serial.print("Sending request to "); Serial.println(topic);
       }
     }
+  }
 
+  // If current screen is one of the statuses lists, send the command on the topic associated with the cell, show confirmation screen and print a message if debug is true
+  if ((currentScreen >= 100) && (currentScreen < 200)) {
+    const char* topic = currentStatuses.status[currentElement - 1].topic;
+    const char* data = currentStatuses.status[currentElement - 1].data;
+    if (strcmp(topic, "") != 0) {
+      client.publish(topic, data);
+      drawConfirmation("Command sent");
+      if (debug) {
+        Serial.print("Sending request to "); Serial.println(topic);
+      }
+    }
   }
 }
 
