@@ -57,7 +57,6 @@ void displayInit(int width, int height) {
     tft.setPivot(width/2, height/2);
     gfx.setColorDepth(8);
     gfx.createSprite(width, height);
-    gfx.fillSprite(TFT_BLACK);
   #endif
   #ifdef ESP8266
     gfx.init();
@@ -73,7 +72,7 @@ void displaySetRotation(int pos) {
 }
 void displayFill(uint16_t color) {
   #ifdef ESP32
-    gfx.fillScreen(palette[color]);
+    gfx.fillSprite(palette[color]);
   #endif
   #ifdef ESP8266
     gfx.fillBuffer(color);
@@ -82,9 +81,6 @@ void displayFill(uint16_t color) {
 void displayCommit(int width, int height) {
   #ifdef ESP32
     gfx.pushRotated(spriteRotation);
-    gfx.deleteSprite();
-    gfx.createSprite(width, height);
-    gfx.fillSprite(TFT_BLACK);
   #endif
   #ifdef ESP8266
     gfx.commit();

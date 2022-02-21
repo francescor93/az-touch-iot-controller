@@ -809,6 +809,11 @@ void drawStatusScreen(int currentScreen) {
   // Check if having only one status and it has no topic
   if ((currentStatuses.statusList == 1) && (strcmp(currentStatuses.status[0].topic, "") == 0)) {
 
+    // Fill the grid area if on a ESP32
+    #ifdef ESP32
+      displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+    #endif
+
     // Print the name attribute
     displayAlignCenter();
     displayFontTitle();
