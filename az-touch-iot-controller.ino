@@ -16,37 +16,38 @@
 // Include the necessary libraries
 #include <Arduino.h>
 #include <SPI.h>
-#include <ESP8266WiFi.h>
+#ifdef ESP32
+  #include <WiFi.h>
+#endif
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>
+#endif
 #include <PubSubClient.h>
-#include <XPT2046_Touchscreen.h>
-#include <MiniGrafx.h>
-#include <ILI9341_SPI.h>
 #include <simpleDSTadjust.h>
 #undef min // This is essential to avoid the compilation error "expected unqualified-id before '(' token" when including the ArduinoJson library
 #include <ArduinoJson.h>
 #include <SD.h>
-#include "ArialRounded.h"
-#include "TouchControllerWS.h"
-#include "config.h"
-#include "icons.cpp"
+#include <Regexp.h>
 
-/***** Advanced Configuration *****/
-  struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
-  struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
-  int configSize = 2395;
-  int mqttSize = 512;
-  const int maxDevices = 8;
-  const char* filename = "/config.txt";
-  bool debug = true;
-/***** Advanced Configuration *****/
+// Include local files
+#include "src/TouchControllerWS.h"
+#include "src/config.h"
+#include "src/draw.h"
+#include "src/icons.cpp"
 
 // Define the pins used by the system
-#define TFT_DC D2
-#define TFT_CS D1
-#define TFT_LED D8
-#define TOUCH_CS D3
-#define TOUCH_IRQ D4
-#define SD_CS D0
+#ifdef ESP32
+  #define TFT_LED 15
+  #define TOUCH_CS 14
+  #define TOUCH_IRQ 27
+  #define SD_CS 21
+#endif
+#ifdef ESP8266
+  #define TFT_LED D8
+  #define TOUCH_CS D3
+  #define TOUCH_IRQ D4
+  #define SD_CS D0
+#endif
 
 // Initialize the variables for the device
 const char* DEVICE = "TouchController";
@@ -54,13 +55,6 @@ const char* DELIMITER = "/";
 
 // Define the appearance of the screen
 #define HAVE_TOUCHPAD
-int BITS_PER_PIXEL = 2; // 2^2 =  4 colors
-uint16_t palette[] = {
-  ILI9341_BLACK, // 0
-  ILI9341_WHITE, // 1
-  ILI9341_BLUE, //2
-  ILI9341_YELLOW // 3
-};
 
 // Initialize the variables used by the sketch
 int currentScreen;
@@ -71,16 +65,11 @@ unsigned long int lastTouch;
 Config config;
 
 // Initialize the struct for individual IoT devices
-struct Statuses {
-  char name[32];
-  char topic[64];
-};
 struct IotDevice {
   int id;
   char name[32];
-  char status[32];
   char icon[16];
-  int color;
+  char color[8];
 };
 struct Devices {
   IotDevice iot[maxDevices];
@@ -88,16 +77,24 @@ struct Devices {
 };
 Devices currentDevices;
 
+// Initialize the struct for individual IoT device statuses
+struct IotStatus {
+  char name[32];
+  char topic[64];
+  char data[128];
+};
+struct Statuses {
+  IotStatus status[maxDeviceStatuses];
+  int statusList;
+};
+Statuses currentStatuses;
+
 // This line is needed to avoid the compile error for callback function not (yet) defined
 extern void callback(char* topic, byte* payload, unsigned int length);
 
 // Create a wifi client and bind the MQTT client
 WiFiClient wifiClient;
 PubSubClient client("127.0.0.1", 1883, callback, wifiClient); // Using a fake address, because configuration hasn't loaded yet
-
-// Initialize the LCD screen
-ILI9341_SPI tft = ILI9341_SPI(TFT_CS, TFT_DC);
-MiniGrafx gfx = MiniGrafx(&tft, BITS_PER_PIXEL, palette);
 
 // Initialize touch detection and its calibration
 XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
@@ -117,8 +114,10 @@ void setup() {
     Serial.println("Serial started");
   }
 
-  // Set default orientation and background. They will be updated as soon as the configuration is loaded.
+  // Set default size, orientation and background. They will be updated as soon as the configuration is loaded.
   config.screen.landscape = false;
+  config.screen.width = 240;
+  config.screen.height = 320;
   config.screen.colors.mainBackground = 0;
   config.screen.colors.mainForeground = 1;
   config.screen.colors.secondaryBackground = 2;
@@ -126,11 +125,11 @@ void setup() {
 
   // Start the LCD display and print a message if debug is true
   pinMode(TFT_LED, OUTPUT);
-  digitalWrite(TFT_LED, HIGH);
-  gfx.init();
-  gfx.setRotation(config.screen.landscape ? 3 : 2);
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.commit();
+  lcdOn();
+  displayInit(config.screen.width, config.screen.height);
+  displaySetRotation(config.screen.landscape ? 3 : 2);
+  displayFill(config.screen.colors.mainBackground);
+  displayCommit(config.screen.width, config.screen.height);
   if (debug) {
     Serial.println("LCD initialized");
   }
@@ -192,6 +191,9 @@ void setup() {
       Serial.println("Configuration copied to SPIFFS memory");
     }
   }
+  else {
+    Serial.println("No file");
+  }
 
   // Try to open the file and if it doesn't exist write it on the screen and print a message if debug is true
   File file = SPIFFS.open(filename, "r");
@@ -216,11 +218,11 @@ void setup() {
   file.close();
 
   // Set the correct screen rotation
-  gfx.setRotation(config.screen.landscape ? 3 : 2);
+  displaySetRotation(config.screen.landscape ? 3 : 2);
 
+  WiFi.begin(config.wifi.ssid, config.wifi.password);
   // Start the wifi and call the wifi connection and MQTT connection function
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
-  WiFi.begin(config.wifi.ssid, config.wifi.password);
   client.setServer(config.mqtt.host, 1883);
   reconnect();
 
@@ -259,9 +261,17 @@ void loop() {
     if (currentScreen == -1) {
       drawHome();
     }
-
-    else if (currentScreen >= 0) {
+    else if (currentScreen >= 0 && currentScreen < 100) {
       drawIotScreen(currentScreen);
+    }
+    else if (currentScreen >= 100 && currentScreen < 200) {
+      drawStatusScreen(currentScreen);
+    }
+    else {
+      if (debug) {
+        Serial.println("Unknown screen selected. Returning to home screen.");
+        currentScreen = -1;
+      }
     }
   }
 
@@ -270,7 +280,7 @@ void loop() {
     TS_Point p = touchController.getPoint();
 
     // If the screen was already on
-    if (digitalRead(TFT_LED) == HIGH) {
+    if (isLcdOn()) {
 
       // Get the cell touched
       int cellNumber = calculateTouchedCell(p.x, p.y);
@@ -280,21 +290,21 @@ void loop() {
     }
 
     // Make sure the backlight is on
-    digitalWrite(TFT_LED, HIGH);
+    lcdOn();
 
     // Update the last touch time
     lastTouch = millis();
   }
 
   // If the screen has been on for too long without touching, turn it off and return to the home screen
-  if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (digitalRead(TFT_LED) == HIGH)) {
-    digitalWrite(TFT_LED, LOW);
+  if ((millis() > (lastTouch + config.screen.timeout * 1000)) && (isLcdOn())) {
+    lcdOff();
     currentScreen = -1;
     currentPage = 1;
   }
 
   // Write the created data on the screen
-  gfx.commit();
+  displayCommit(config.screen.width, config.screen.height);
 
   // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
@@ -309,113 +319,213 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print("With payload: "); Serial.println((char*)payload);
   }
 
-  // Convert the received string to an array
-  DynamicJsonDocument devices(mqttSize);
-  DeserializationError error = deserializeJson(devices, (char*)payload);
-  if (error) {
-    if (debug) {
-      Serial.print("Error during MQTT deserialization: ");
-      Serial.println(error.c_str());
-    }
-    return;
-  }
+  // Only proceed if on a loading screen
+  if (currentScreen == -2) {
 
-  // Save each element of the array as a device in the appropriate struct
-  int i = 0;
-  for (JsonObject iotObj : devices.as<JsonArray>()) {
-    IotDevice device;
-    device.id = iotObj["id"];
-    strlcpy(device.name, iotObj["name"], sizeof(device.name));
-    if (iotObj["status"].is<int>()) {
-      itoa(iotObj["status"], device.status, 10);
-    }
-    else {
-      strlcpy(device.status, iotObj["status"], sizeof(device.status));
-    }
-    strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
-    device.color = iotObj["color"] | -1;
-    currentDevices.iot[i] = device;
-    i += 1;
-  }
-  currentDevices.iotList = i;
+    // Set the home screen as a default result
+    currentScreen = -1;
+    currentPage = 1;
 
-  // Set screen and page based on the received topic and print a message if debug is true
-  int iotIndex;
-  for (int i = 0; i < config.iotList; i++) {
-    if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
-      currentScreen = i;
-      currentPage = 1;
+    // Convert the received string to an array or return to home in case of error
+    DynamicJsonDocument json(mqttSize);
+    DeserializationError error = deserializeJson(json, (char*)payload);
+    if (error) {
       if (debug) {
-        Serial.print("Received topic for IoT "); Serial.println(config.iot[i].name);
+        Serial.print("Error during MQTT deserialization: ");
+        Serial.println(error.c_str());
       }
-      break;
+      return;
+    }
+
+    // Check if received topic is a list of devices
+    if (isListTopic(topic)) {
+
+      // Search in the list of device types for the one with the topic corresponding to the one received 
+      for (int i = 0; i < config.iotList; i++) {
+        if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
+          
+          // Save each element of the array as a device in the appropriate struct
+          int j = 0;
+          for (JsonObject iotObj : json.as<JsonArray>()) {
+            IotDevice device;
+            device.id = iotObj["id"];
+            strlcpy(device.name, iotObj["name"], sizeof(device.name));
+            strlcpy(device.icon, iotObj["icon"] | "", sizeof(device.icon));
+            strlcpy(device.color, iotObj["color"] | "", sizeof(device.color));
+            currentDevices.iot[j] = device;
+            j += 1;
+          }
+          currentDevices.iotList = j;
+
+          // Set screen and page based on the received topic and print a message if debug is true
+          currentScreen = i;
+          currentPage = 1;
+          if (debug) {
+            Serial.print("Received devices topic for IoT: "); Serial.println(config.iot[i].name);
+          }
+          break;
+        }
+      }
+    }
+
+    // If it's not a devices list it's a statuses list
+    else {
+      
+      // Search in the list of device types for the one with the topic corresponding to the one received 
+      for (int i = 0; i < config.iotList; i++) {
+        MatchState ms;
+        ms.Target (topic);
+        char match[64];
+        sprintf(match, config.iot[i].topic.statusResponse, ".*");
+        char result = ms.Match (match);
+        if (result == REGEXP_MATCHED) {
+
+          // Save each element of the array as a status in the appropriate struct
+          int j = 0;
+          for (JsonObject iotStatus : json.as<JsonArray>()) {
+            IotStatus status;
+            strlcpy(status.name, iotStatus["name"], sizeof(status.name));
+            strlcpy(status.topic, iotStatus["topic"] | "", sizeof(status.topic));
+            strlcpy(status.data, iotStatus["data"] | "", sizeof(status.data));
+            currentStatuses.status[j] = status;
+            j += 1;
+          }
+          currentStatuses.statusList = j;
+
+          // Set screen and page based on the received topic and print a message if debug is true
+          currentScreen = i + 100;
+          currentPage = 1;
+          if (debug) {
+            Serial.print("Received statuses topic for IoT: "); Serial.println(config.iot[i].name);
+          }
+          break;
+        }
+      }
+    }
+
+    // Make sure the backlight is on
+    lcdOn();
+
+    // Update the last touch time
+    lastTouch = millis();
+  }
+}
+
+// Function to turn on the touchscreen
+void lcdOn() {
+  #ifdef ESP32
+    digitalWrite(TFT_LED, LOW);
+  #endif
+  #ifdef ESP8266
+    digitalWrite(TFT_LED, HIGH);
+  #endif
+}
+
+// Function to turn off the touchscreen
+void lcdOff() {
+  #ifdef ESP32
+    digitalWrite(TFT_LED, HIGH);
+  #endif
+  #ifdef ESP8266
+    digitalWrite(TFT_LED, LOW);
+  #endif
+}
+
+// Function to check if the touchscreen is on
+bool isLcdOn() {
+  bool lcdStatus = digitalRead(TFT_LED);
+  #ifdef ESP32
+    return (lcdStatus == HIGH) ? false : true;
+  #endif
+  #ifdef ESP8266
+    return (lcdStatus == HIGH) ? true : false;
+  #endif
+}
+
+// Function to check if received topic is list or status
+bool isListTopic(char* topic) {
+  for (int i = 0; i < config.iotList; i++) {
+    if (strcmp(config.iot[i].topic.listResponse, topic) == 0) {
+      return true;
     }
   }
-
-  // Make sure the backlight is on
-  digitalWrite(TFT_LED, HIGH);
-
-  // Update the last touch time
-  lastTouch = millis();
+  return false;
 }
 
 // Functions to calibrate the touchscreen at first power up
 void calibrateTouchScreen() {
   touchController.startCalibration(&calibration);
   while (!touchController.isCalibrationFinished()) {
-    gfx.fillBuffer(0);
-    gfx.setColor(1);
-    gfx.setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx.drawString(120, 160, "Please calibrate\ntouch screen by\ntouch point");
+    displayFill(0);
+    displayAlignCenter();
+    displaySetColor(1);
+    displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
     touchController.continueCalibration();
-    gfx.commit();
+    displayCommit(config.screen.width, config.screen.height);
     yield();
   }
   touchController.saveCalibration();
 }
 void calibrationCallback(int16_t x, int16_t y) {
-  gfx.setColor(1);
-  gfx.fillCircle(x, y, 10);
+  displayFillCircle(x, y, 10, palette[1]);
 }
 
 // Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
-  // Set the background and center-aligned Arial 14 font
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.setFont(ArialRoundedMTBold_14);
-  gfx.setTextAlignment(TEXT_ALIGN_CENTER);
+  // Set the background and title font
+  displayFill(config.screen.colors.mainBackground);
+  displayFontTitle();
+  displayAlignCenter();
 
   // Create the logo
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.drawXbm(20, 5, 200, 80, mainLogo);
+  displayDrawBitmap(mainLogo, 20, 5, 200, 80, config.screen.colors.secondaryForeground);
 
   // Create the url
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawString(120, 85, "https://www.regafamilysite.ga");
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite("https://www.regafamilysite.ga", 120, 85);
 
   // Create the text provided
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.drawString(120, 146, text);
+  displaySetColor(config.screen.colors.secondaryForeground);
+  displayWrite(text, 120, 146);
 
   // Create the progress bar
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawRect(10, 168, 240 - 20, 15);
-  gfx.setColor(config.screen.colors.secondaryForeground);
-  gfx.fillRect(12, 170, 216 * percentage / 100, 11);
+  displayDrawRect(10, 168, 240 - 20, 15, config.screen.colors.mainForeground);
+  displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
-  gfx.commit();
+  displayCommit(config.screen.width, config.screen.height);
+}
+
+// Function to show the confirmation screen
+void drawConfirmation(String text) {
+  displayCommit(config.screen.width, config.screen.height);
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, 4);
+  #endif
+  #ifdef ESP8266
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
+  displayAlignCenter();
+  displayFontTitle();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(text, config.screen.grid.width / 2, config.screen.grid.height / 2 + config.screen.headerHeight);
+  displayCommit(config.screen.width, config.screen.height);
+  delay(1000);
+  currentScreen = -1;
+  currentPage = 1;
 }
 
 // Function to generate the header bar with time and signal quality
 void drawHeader() {
 
-  // Set the background and left-aligned Arial 10 font
-  gfx.fillBuffer(config.screen.colors.mainBackground);
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.setFont(ArialMT_Plain_10);
-  gfx.setTextAlignment(TEXT_ALIGN_LEFT);
+  // Set the background
+  #ifdef ESP32
+    displayFillRect(0, 0, config.screen.width, config.screen.headerHeight, config.screen.colors.mainBackground);
+  #endif
+  #ifdef ESP8266
+    displayFill(config.screen.colors.mainBackground);
+  #endif
 
   // Get the current time
   char time_str[11];
@@ -425,7 +535,10 @@ void drawHeader() {
 
   // Create the time
   sprintf(time_str, "%02d:%02d",timeinfo->tm_hour, timeinfo->tm_min);
-  gfx.drawString(3, 2, time_str);
+  displayFontText();
+  displayAlignLeft();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(time_str, 3, 2);
 
   // Calculate the quality of the wifi signal as a percentage
   int32_t dbm = WiFi.RSSI();
@@ -441,11 +554,11 @@ void drawHeader() {
   }
 
   // Create signal quality
-  gfx.drawString(205, 2, String(quality) + "%");
+  displayWrite(String(quality) + "%", 205, 2);
   for (int8_t i = 0; i < 4; i++) {
     for (int8_t j = 0; j < 2 * (i + 1); j++) {
       if (quality > i * 25 || j == 0) {
-        gfx.setPixel(230 + 2 * i, 11 - j);
+        displayDrawPixel(230 + 2 * i, 11 - j, config.screen.colors.mainForeground);
       }
     }
   }
@@ -455,7 +568,10 @@ void drawHeader() {
 void drawGrid() {
 
   // Create the separator between header and table
-  gfx.drawHorizontalLine(0, config.screen.headerHeight, config.screen.grid.width);
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
+  displayDrawHLine(0, config.screen.headerHeight, config.screen.grid.width, config.screen.colors.mainForeground);
 
   // Create the columns
   int startX = 0;
@@ -464,7 +580,7 @@ void drawGrid() {
     if (startX > config.screen.grid.width) {
       break;
     }
-    gfx.drawVerticalLine(startX, config.screen.headerHeight, config.screen.grid.height);
+    displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
   }
 
   // Create the rows
@@ -474,7 +590,7 @@ void drawGrid() {
     if (startY > config.screen.grid.width) {
       break;
     }
-    gfx.drawHorizontalLine(0, startY, config.screen.grid.width);
+    displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
   }
 }
 
@@ -498,7 +614,7 @@ int getImageIndex(char* name) {
   return -1;
 }
 
-// Functions to update the contents of a cell with text or an image
+// Functions to update the contents of a cell with text, image or color
 void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
 
   // Get the row and column number from the cell number
@@ -516,11 +632,11 @@ void updateCell(int cellNumber, String text, int offsetX = 0, int offsetY = 0) {
   int centerX = config.screen.grid.cellWidth / 2 + minX;
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
-  // Create the text provided
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.setFont(ArialMT_Plain_10);
-  gfx.setTextAlignment(TEXT_ALIGN_CENTER_BOTH);
-  gfx.drawString(centerX + offsetX, centerY + offsetY, text);
+  // Write the text provided
+  displayFontText();
+  displayAlignCenterMiddle();
+  displaySetColor(config.screen.colors.mainForeground);
+  displayWrite(text, centerX + offsetX, centerY + offsetY);
 }
 void updateCell(int cellNumber, int index) {
 
@@ -539,9 +655,31 @@ void updateCell(int cellNumber, int index) {
   int centerX = config.screen.grid.cellWidth / 2 + minX;
   int centerY = config.screen.grid.cellHeight / 2 + minY;
 
-  // Create the image provided
-  gfx.setColor(config.screen.colors.mainForeground);
-  gfx.drawXbm(centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, myIcons[index]);
+  // Draw the image provided
+  displayDrawBitmap(myIcons[index], centerX - (config.screen.iconsSize / 2), centerY - (config.screen.iconsSize / 2), config.screen.iconsSize, config.screen.iconsSize, config.screen.colors.mainForeground);
+}
+void updateCell(int cellNumber, char* color) {
+
+  // Get the row and column number from the cell number
+  int row = 0;
+  int col = 0;
+  cellToGrid(cellNumber, row, col);
+
+  // Get the coordinates of the cell vertices
+  int minX = config.screen.grid.cellWidth * (col - 1);
+  int maxX = minX + config.screen.grid.cellWidth;
+  int minY = config.screen.grid.cellHeight * (row - 1) + config.screen.headerHeight;
+  int maxY = minY + config.screen.grid.cellHeight;
+
+  // Fill with the color provided
+  int i = 0;
+  for (char* colorName : colorNames) {
+    if (strcmp(colorName, color) == 0) {
+      break;
+    }
+    i++;
+  }
+  displayFillRect(minX, minY, config.screen.grid.cellWidth, config.screen.grid.cellHeight, i);
 }
 
 // Function to show the main screen with the grid and icons of the different cells
@@ -604,7 +742,7 @@ void drawHome() {
 void drawIotScreen(int currentScreen) {
   drawGrid();
 
-  // Calculate the maximum number of cells on a page and the maximum number of devices to show
+  // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
 
   // Check if pagination is required
@@ -630,18 +768,25 @@ void drawIotScreen(int currentScreen) {
   // For each real IoT device received
   for (int i = 0; i < limit; i++) {
 
-      // Look for the device image
-      int imgIndex = -1;
-      imgIndex = getImageIndex(currentDevices.iot[minIot].icon);
-      if (imgIndex == -1) {
-        imgIndex = getImageIndex(config.iot[currentScreen].icon);
-      }
+    // Look for the device image
+    int imgIndex = -1;
+    imgIndex = getImageIndex(currentDevices.iot[minIot].icon);
+    if (imgIndex == -1) {
+      imgIndex = getImageIndex(config.iot[currentScreen].icon);
+    }
 
     // If this is the last cell on the page and there are subsequent devices, show the "Next" icon
     if ((i == (limit - 1)) && (minIot < (currentDevices.iotList - 1))) {
       updateCell(currentCell, getImageIndex("next"));
     }
     else {
+
+      // Only on ESP32 (because of RAM limitations), if a background color is available, fill the cell
+      #ifdef ESP32
+        if (strcmp(currentDevices.iot[minIot].color, "") != 0) {
+          updateCell(currentCell, currentDevices.iot[minIot].color);
+        }
+      #endif
 
       // If an image is available show it together with the name, otherwise show only the center-aligned name
       if (imgIndex > -1) {
@@ -656,6 +801,95 @@ void drawIotScreen(int currentScreen) {
     // Increment the current cell number and the current IoT device number
     currentCell++;
     minIot++;
+  }
+}
+
+void drawStatusScreen(int currentScreen) {
+
+  // Check if having only one status and it has no topic
+  if ((currentStatuses.statusList == 1) && (strcmp(currentStatuses.status[0].topic, "") == 0)) {
+
+    // Fill the grid area if on a ESP32
+    #ifdef ESP32
+      displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+    #endif
+
+    // Print the name attribute
+    displayAlignCenter();
+    displayFontTitle();
+    displayWrite(currentStatuses.status[0].name, config.screen.width / 2, config.screen.headerHeight + 40);
+    displayFontText();
+    int rowCounter = 1;
+    DynamicJsonDocument data(256);
+    deserializeJson(data, (const char*)currentStatuses.status[0].data);
+    JsonObject dataObj = data.as<JsonObject>();
+
+    // If data attribute is a string, print this in full as well
+    if (dataObj.isNull()) {
+      displayWrite(currentStatuses.status[0].data, config.screen.width / 2, config.screen.headerHeight + 40 + 40 * rowCounter);
+    }
+
+    // If it's a json object, print a new line for each key-value
+    else {
+      for (JsonPair row : dataObj) {
+        displayWrite(String(row.key().c_str()) + ": " + String(row.value().as<char*>()), config.screen.width / 2, config.screen.headerHeight + 40 + 40 * rowCounter);
+        rowCounter++;
+      }
+    }
+  }
+  else {
+    drawGrid();
+  
+    // Calculate the maximum number of cells on a page
+    int maxCells = config.screen.grid.rows * config.screen.grid.cols;
+  
+    // Check if pagination is required
+    bool needsPagination = currentStatuses.statusList > maxCells;
+  
+    // Define the variable for the cell we are currently updating
+    int currentCell = 1;
+  
+    // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
+    if ((needsPagination) && (currentPage > 1)) {
+      updateCell(currentCell, getImageIndex("back"));
+      maxCells--;
+      currentCell++;
+    }
+  
+    // Determine which status to view from
+    int minStatus = maxCells * (currentPage - 1);
+    if (currentPage > 2) { minStatus--; }
+  
+    // Calculate the lesser of the total number of received statuses and the total number of displayable cells
+    int limit = min(currentStatuses.statusList, maxCells);
+  
+    // For each status received
+    for (int i = 0; i < limit; i++) {
+  
+      // Look for the device image
+      int imgIndex = -1;
+      imgIndex = getImageIndex(config.iot[currentScreen - 100].icon);
+  
+      // If this is the last cell on the page and there are subsequent statuses, show the "Next" icon
+      if ((i == (limit - 1)) && (minStatus < (currentStatuses.statusList - 1))) {
+        updateCell(currentCell, getImageIndex("next"));
+      }
+      else {
+        
+        // If an image is available show it together with the name, otherwise show only the center-aligned name
+        if (imgIndex > -1) {
+          updateCell(currentCell, imgIndex);
+          updateCell(currentCell, String(currentStatuses.status[minStatus].name), 0, 40);
+        }
+        else {
+          updateCell(currentCell, String(currentStatuses.status[minStatus].name));
+        }
+      }
+  
+      // Increment the current cell number and the current status number
+      currentCell++;
+      minStatus++;
+    }
   }
 }
 
@@ -732,23 +966,30 @@ void executeCellAction(int cellNumber) {
   int currentElement = minIot + cellNumber;
   if (currentPage > 1) { currentElement--; }
   if (debug) {
-    Serial.print("Touched IoT device "); Serial.println(currentElement);
+    Serial.print("Touched element "); Serial.println(currentElement);
   }
 
   // If the current screen is the home screen, send the device request on the topic associated with the cell, show loading screen and print a message if debug is true
   if (currentScreen == -1) {
+    if (currentElement > config.iotList) {
+      return;
+    }
     const char* topic = config.iot[currentElement - 1].topic.listRequest;
     if (strcmp(topic, "") != 0) {
       client.publish(topic, "");
       currentScreen = -2;
       drawProgress(50, "Loading devices");
       if (debug) {
-        Serial.print("Sending request to "); Serial.println(topic);
+        Serial.print("Sending home request to "); Serial.println(topic);
       }
     }
   }
-  // If current screen is one of the device lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
+  
+  // If current screen is one of the devices lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if ((currentScreen >= 0) && (currentScreen < 100)) {
+    if (currentElement > currentDevices.iotList) {
+      return;
+    }
     const char* templateTopic = config.iot[currentScreen].topic.statusRequest;
     if (strcmp(templateTopic, "") != 0) {
       char topic[64];
@@ -759,10 +1000,25 @@ void executeCellAction(int cellNumber) {
       currentScreen = -2;
       drawProgress(50, "Loading statuses");
       if (debug) {
-        Serial.print("Sending request to "); Serial.println(topic);
+        Serial.print("Sending device request to "); Serial.println(topic);
       }
     }
+  }
 
+  // If current screen is one of the statuses lists, send the command on the topic associated with the cell, show confirmation screen and print a message if debug is true
+  if ((currentScreen >= 100) && (currentScreen < 200)) {
+    if (currentElement > currentStatuses.statusList) {
+      return;
+    }
+    const char* topic = currentStatuses.status[currentElement - 1].topic;
+    const char* data = currentStatuses.status[currentElement - 1].data;
+    if (strcmp(topic, "") != 0) {
+      client.publish(topic, data);
+      drawConfirmation("Command sent");
+      if (debug) {
+        Serial.print("Sending status request to "); Serial.print(topic); Serial.print(" with data "); Serial.println(data);
+      }
+    }
   }
 }
 

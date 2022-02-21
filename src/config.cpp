@@ -1,4 +1,7 @@
 #include "config.h"
+#ifdef ESP32
+  #include "FS.h"
+#endif
 
 // Function to load the configuration into the Config struct
 bool loadConfiguration(Config &config, File &file, int configSize) {
@@ -30,7 +33,7 @@ bool loadConfiguration(Config &config, File &file, int configSize) {
   config.screen.timeout = doc["screen"]["timeout"];
   config.screen.headerHeight = doc["screen"]["headerHeight"];
 
-  // According to the configuration, set the screen values 
+  // According to the configuration, set the screen values
   config.screen.width = (config.screen.landscape ? 320 : 240);
   config.screen.height = (config.screen.landscape ? 240 : 320);
   config.screen.grid.width = config.screen.width;
