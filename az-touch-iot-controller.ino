@@ -597,9 +597,11 @@ void drawGrid() {
 // Function to get row and column starting from the cell number
 void cellToGrid(int cellNumber, int &row, int &col) {
   float r = (float)cellNumber / (float)config.screen.grid.cols;
-  r = r + 0.5;
-  row = (int)r;
-  col = cellNumber / row;
+  row = (int)ceil(r);
+  if (row < 1) { row = 1; }
+  if (row > config.screen.grid.rows) { row = config.screen.grid.rows; }
+  col = cellNumber % config.screen.grid.cols;
+  if (col == 0) { col = config.screen.grid.cols; }
 }
 
 // Function to get the position of an image in the image array starting from its name
