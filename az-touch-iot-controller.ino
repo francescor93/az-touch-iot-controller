@@ -127,9 +127,9 @@ void setup() {
   pinMode(TFT_LED, OUTPUT);
   lcdOn();
   displayInit(config.screen.width, config.screen.height);
-  displaySetRotation(config.screen.landscape ? 3 : 2);
+  displaySetRotation(config.screen.landscape ? 3 : 2, config.screen.width, config.screen.height);
   displayFill(config.screen.colors.mainBackground);
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   if (debug) {
     Serial.println("LCD initialized");
   }
@@ -218,7 +218,7 @@ void setup() {
   file.close();
 
   // Set the correct screen rotation
-  displaySetRotation(config.screen.landscape ? 3 : 2);
+  displaySetRotation(config.screen.landscape ? 3 : 2, config.screen.width, config.screen.height);
 
   WiFi.begin(config.wifi.ssid, config.wifi.password);
   // Start the wifi and call the wifi connection and MQTT connection function
@@ -304,7 +304,7 @@ void loop() {
   }
 
   // Write the created data on the screen
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
 
   // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
@@ -340,10 +340,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Check if received topic is a list of devices
     if (isListTopic(topic)) {
 
-      // Search in the list of device types for the one with the topic corresponding to the one received 
+      // Search in the list of device types for the one with the topic corresponding to the one received
       for (int i = 0; i < config.iotList; i++) {
         if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
-          
+
           // Save each element of the array as a device in the appropriate struct
           int j = 0;
           for (JsonObject iotObj : json.as<JsonArray>()) {
@@ -370,8 +370,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // If it's not a devices list it's a statuses list
     else {
-      
-      // Search in the list of device types for the one with the topic corresponding to the one received 
+
+      // Search in the list of device types for the one with the topic corresponding to the one received
       for (int i = 0; i < config.iotList; i++) {
         MatchState ms;
         ms.Target (topic);
@@ -461,7 +461,7 @@ void calibrateTouchScreen() {
     displaySetColor(1);
     displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
     touchController.continueCalibration();
-    displayCommit(config.screen.width, config.screen.height);
+    displayCommit();
     yield();
   }
   touchController.saveCalibration();
@@ -494,12 +494,12 @@ void drawProgress(uint8_t percentage, String text) {
   displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
 }
 
 // Function to show the confirmation screen
 void drawConfirmation(String text) {
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   #ifdef ESP32
     displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, 4);
   #endif
@@ -510,7 +510,7 @@ void drawConfirmation(String text) {
   displayFontTitle();
   displaySetColor(config.screen.colors.mainForeground);
   displayWrite(text, config.screen.grid.width / 2, config.screen.grid.height / 2 + config.screen.headerHeight);
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   delay(1000);
   currentScreen = -1;
   currentPage = 1;
@@ -841,43 +841,43 @@ void drawStatusScreen(int currentScreen) {
   }
   else {
     drawGrid();
-  
+
     // Calculate the maximum number of cells on a page
     int maxCells = config.screen.grid.rows * config.screen.grid.cols;
-  
+
     // Check if pagination is required
     bool needsPagination = currentStatuses.statusList > maxCells;
-  
+
     // Define the variable for the cell we are currently updating
     int currentCell = 1;
-  
+
     // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
     if ((needsPagination) && (currentPage > 1)) {
       updateCell(currentCell, getImageIndex("back"));
       maxCells--;
       currentCell++;
     }
-  
+
     // Determine which status to view from
     int minStatus = maxCells * (currentPage - 1);
     if (currentPage > 2) { minStatus--; }
-  
+
     // Calculate the lesser of the total number of received statuses and the total number of displayable cells
     int limit = min(currentStatuses.statusList, maxCells);
-  
+
     // For each status received
     for (int i = 0; i < limit; i++) {
-  
+
       // Look for the device image
       int imgIndex = -1;
       imgIndex = getImageIndex(config.iot[currentScreen - 100].icon);
-  
+
       // If this is the last cell on the page and there are subsequent statuses, show the "Next" icon
       if ((i == (limit - 1)) && (minStatus < (currentStatuses.statusList - 1))) {
         updateCell(currentCell, getImageIndex("next"));
       }
       else {
-        
+
         // If an image is available show it together with the name, otherwise show only the center-aligned name
         if (imgIndex > -1) {
           updateCell(currentCell, imgIndex);
@@ -887,7 +887,7 @@ void drawStatusScreen(int currentScreen) {
           updateCell(currentCell, String(currentStatuses.status[minStatus].name));
         }
       }
-  
+
       // Increment the current cell number and the current status number
       currentCell++;
       minStatus++;
@@ -986,7 +986,7 @@ void executeCellAction(int cellNumber) {
       }
     }
   }
-  
+
   // If current screen is one of the devices lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if ((currentScreen >= 0) && (currentScreen < 100)) {
     if (currentElement > currentDevices.iotList) {

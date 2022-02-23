@@ -31,9 +31,9 @@
 
   // Define display helpers
   extern void displayInit(int width, int height);
-  extern void displaySetRotation(int pos);
+  extern void displaySetRotation(int pos, int newWidth, int newHeight);
   extern void displayFill(uint16_t color);
-  extern void displayCommit(int width, int height);
+  extern void displayCommit();
   extern void displaySetColor(uint16_t color);
   extern void displayFontTitle();
   extern void displayFontText();

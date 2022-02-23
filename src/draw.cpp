@@ -62,9 +62,11 @@ void displayInit(int width, int height) {
     gfx.init();
   #endif
 }
-void displaySetRotation(int pos) {
+void displaySetRotation(int pos, int newWidth, int newHeight) {
   #ifdef ESP32
     spriteRotation = (pos == 3) ? 270 : 180;
+    gfx.deleteSprite();
+    gfx.createSprite(newWidth, newHeight);
   #endif
   #ifdef ESP8266
     gfx.setRotation(pos);
@@ -78,7 +80,7 @@ void displayFill(uint16_t color) {
     gfx.fillBuffer(color);
   #endif
 }
-void displayCommit(int width, int height) {
+void displayCommit() {
   #ifdef ESP32
     gfx.pushRotated(spriteRotation);
   #endif
