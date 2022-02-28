@@ -8,7 +8,9 @@ TouchControllerWS::TouchControllerWS(XPT2046_Touchscreen *touchScreen) {
   this->touchScreen = touchScreen;
 }
 
-bool TouchControllerWS::loadCalibration() {
+bool TouchControllerWS::loadCalibration(int w, int h) {
+  displayWidth = w;
+  displayHeight = h;
   bool result = SPIFFS.begin();
   if (!SPIFFS.exists("/calibration.txt")) {
     return false;
@@ -49,8 +51,11 @@ void TouchControllerWS::startCalibration(CalibrationCallback *calibrationCallbac
   this->calibrationCallback = calibrationCallback;
 }
 
-void TouchControllerWS::continueCalibration() {
+void TouchControllerWS::continueCalibration(int w, int h) {
     TS_Point p = touchScreen->getPoint();
+
+    displayWidth = w;
+    displayHeight = h;
 
     if (state == 0) {
       (*calibrationCallback)(10, 10);
@@ -61,14 +66,14 @@ void TouchControllerWS::continueCalibration() {
       }
 
     } else if (state == 1) {
-      (*calibrationCallback)(230, 310);
+      (*calibrationCallback)(displayWidth - 10, displayHeight - 10);
       if (touchScreen->touched() && (millis() - lastStateChange > 1000)) {
 
         p2 = p;
         state++;
         lastStateChange = millis();
-        dx = 240.0 / abs(p1.y - p2.y);
-        dy = 320.0 / abs(p1.x - p2.x);
+        dx = (float)displayWidth / abs(p1.y - p2.y);
+        dy = (float)displayHeight / abs(p1.x - p2.x);
         ax = p1.y < p2.y ? p1.y : p2.y;
         ay = p1.x < p2.x ? p1.x : p2.x;
       }
@@ -93,7 +98,7 @@ bool TouchControllerWS::isTouched(int16_t debounceMillis) {
 TS_Point TouchControllerWS::getPoint() {
     TS_Point p = touchScreen->getPoint();
     int x = (p.y - ax) * dx;
-    int y = 320 - (p.x - ay) * dy;
+    int y = displayHeight - (p.x - ay) * dy;
     p.x = x;
     p.y = y;
     return p;

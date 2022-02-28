@@ -185,6 +185,7 @@ void setup() {
       i += 10;
       delay(500);
     }
+    SPIFFS.remove("/calibration.txt"); //FixMe
     destFile.close();
     sourceFile.close();
     if (debug) {
@@ -217,17 +218,18 @@ void setup() {
   drawProgress(100, "Configuration loaded");
   file.close();
 
-  // Set the correct screen rotation
+  // Set the correct screen and touch rotation
   displaySetRotation(config.screen.landscape ? 3 : 2, config.screen.width, config.screen.height);
+  ts.setRotation(config.screen.landscape ? 2 : 1);
 
-  WiFi.begin(config.wifi.ssid, config.wifi.password);
   // Start the wifi and call the wifi connection and MQTT connection function
+  WiFi.begin(config.wifi.ssid, config.wifi.password);
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
   client.setServer(config.mqtt.host, 1883);
   reconnect();
 
   // Load the touchscreen calibration
-  boolean isCalibrationAvailable = touchController.loadCalibration();
+  boolean isCalibrationAvailable = touchController.loadCalibration(config.screen.width, config.screen.height);
   if (!isCalibrationAvailable) {
     calibrateTouchScreen();
   }
@@ -460,7 +462,7 @@ void calibrateTouchScreen() {
     displayAlignCenter();
     displaySetColor(1);
     displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
-    touchController.continueCalibration();
+    touchController.continueCalibration(config.screen.width, config.screen.height);
     displayCommit();
     yield();
   }
