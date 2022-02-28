@@ -475,25 +475,27 @@ void calibrationCallback(int16_t x, int16_t y) {
 // Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
-  // Set the background and title font
+  // Set the background
   displayFill(config.screen.colors.mainBackground);
-  displayFontTitle();
-  displayAlignCenter();
 
   // Create the logo
-  displayDrawBitmap(mainLogo, 20, 5, 200, 80, config.screen.colors.secondaryForeground);
+  displayDrawBitmap(mainLogo, (config.screen.width / 2) - 100, 5, 200, 80, config.screen.colors.secondaryForeground);
 
   // Create the url
   displaySetColor(config.screen.colors.mainForeground);
-  displayWrite("https://www.regafamilysite.ga", 120, 85);
+  displayFontText();
+  displayAlignCenter();
+  displayWrite("www.francescorega.eu", config.screen.width / 2, 85);
 
   // Create the text provided
   displaySetColor(config.screen.colors.secondaryForeground);
-  displayWrite(text, 120, 146);
+  displayFontTitle();
+  displayAlignCenter();
+  displayWrite(text, config.screen.width / 2, 146);
 
   // Create the progress bar
-  displayDrawRect(10, 168, 240 - 20, 15, config.screen.colors.mainForeground);
-  displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
+  displayDrawRect(10, 168, config.screen.width - 20, 15, config.screen.colors.mainForeground);
+  displayFillRect(12, 170, (config.screen.width - 24) * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
   displayCommit();
@@ -556,11 +558,11 @@ void drawHeader() {
   }
 
   // Create signal quality
-  displayWrite(String(quality) + "%", 205, 2);
+  displayWrite(String(quality) + "%", config.screen.width - 35, 2);
   for (int8_t i = 0; i < 4; i++) {
     for (int8_t j = 0; j < 2 * (i + 1); j++) {
       if (quality > i * 25 || j == 0) {
-        displayDrawPixel(230 + 2 * i, 11 - j, config.screen.colors.mainForeground);
+        displayDrawPixel((config.screen.width - 10) + 2 * i, 11 - j, config.screen.colors.mainForeground);
       }
     }
   }
