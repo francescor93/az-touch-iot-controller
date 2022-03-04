@@ -2,6 +2,7 @@
 #ifdef ESP32
   #include "FS.h"
 #endif
+#include "../advancedconfig.cpp"
 
 // Function to load the configuration into the Config struct
 bool loadConfiguration(Config &config, File &file, int configSize) {
@@ -10,8 +11,10 @@ bool loadConfiguration(Config &config, File &file, int configSize) {
   DynamicJsonDocument doc(configSize);
   DeserializationError error = deserializeJson(doc, file);
   if (error) {
-    Serial.print("Error during config deserialization: ");
-    Serial.println(error.c_str());
+    if (debug) {
+      Serial.print("Error during config deserialization: ");
+      Serial.println(error.c_str());
+    }
     return false;
   }
 

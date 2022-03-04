@@ -185,7 +185,6 @@ void setup() {
       i += 10;
       delay(500);
     }
-    SPIFFS.remove("/calibration.txt"); //FixMe
     destFile.close();
     sourceFile.close();
     if (debug) {

@@ -3,47 +3,120 @@
   #include "FS.h"
   #include "SPIFFS.h"
 #endif
+#include "../advancedconfig.cpp"
 
 TouchControllerWS::TouchControllerWS(XPT2046_Touchscreen *touchScreen) {
   this->touchScreen = touchScreen;
 }
 
+int TouchControllerWS::getCalibration(JsonObject &calibration) {
+
+  // Search for calibration file in SPIFFS and exit if not found
+  SPIFFS.begin();
+  if (!SPIFFS.exists("/calibration.txt")) {
+    if (debug) {
+      Serial.println("No calibration file found");
+    }
+    return 1;
+  }
+
+  // If file is found, try to decode it and exit on error
+  File f = SPIFFS.open("/calibration.txt", "r");
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, f);
+  if (error) {
+    if (debug) {
+      Serial.print("Error during calibration deserialization: ");
+      Serial.println(error.c_str());
+    }
+    f.close();
+    return 2;
+  }
+
+  // If decoding went well, search for current orientation object and exit if not found
+  String orientation = (displayWidth > displayHeight) ? "landscape" : "portrait";
+  JsonObject orientationObj = doc.as<JsonObject>();
+  if (!orientationObj.containsKey(orientation)) {
+    if (debug) {
+      Serial.println("No valid orientation data found");
+    }
+    f.close();
+    return 3;
+  }
+
+  // If object is found, write it into the given variable and terminate
+  calibration = orientationObj[orientation].as<JsonObject>();
+  f.close();
+  return 0;
+}
+
 bool TouchControllerWS::loadCalibration(int w, int h) {
+
+  // Save given sizes in object properties
   displayWidth = w;
   displayHeight = h;
-  bool result = SPIFFS.begin();
-  if (!SPIFFS.exists("/calibration.txt")) {
+
+  // Try to get calibration object and exit if not found
+  JsonObject calibration;
+  if (getCalibration(calibration) != 0) {
     return false;
   }
-  else {
-    File f = SPIFFS.open("/calibration.txt", "r");
-    String dxStr = f.readStringUntil('\n');
-    String dyStr = f.readStringUntil('\n');
-    String axStr = f.readStringUntil('\n');
-    String ayStr = f.readStringUntil('\n');
-    dx = dxStr.toFloat();
-    dy = dyStr.toFloat();
-    ax = axStr.toInt();
-    ay = ayStr.toInt();
-    f.close();
-  }
+
+  // Save read calibration values in object properties
+  dx = calibration["dx"];
+  dy = calibration["dy"];
+  ax = calibration["ax"];
+  ay = calibration["ax"];
+  return true;
 }
 
 bool TouchControllerWS::saveCalibration() {
-  bool result = SPIFFS.begin();
 
-  // open the file in write mode
-  File f = SPIFFS.open("/calibration.txt", "w");
-  if (!f) {
-    Serial.println("file creation failed");
+  // Initialize SPIFFS
+  SPIFFS.begin();
+
+  // Try to get calibration data for current orientation
+  JsonObject data;
+  int result = getCalibration(data);
+
+  // Initialize a JSON document
+  DynamicJsonDocument calibration(256);
+
+  // Only if returned result is 3 (so, a valid json is present, but not for the current orientation), deserialize other data
+  if (result == 3) {
+    File temp = SPIFFS.open("/calibration.txt", "r");
+    deserializeJson(calibration, temp);
+    temp.close();
   }
-  // now write two lines in key/value style with  end-of-line characters
-  f.println(dx);
-  f.println(dy);
-  f.println(ax);
-  f.println(ay);
 
-  f.close();
+  // Only if returned result is not 0 (so, there's no data for current orientation already), create a new child object.
+  // If 0 is returned, a valid object will already be present on data as a result of the getCalibration function
+  if (result != 0) {
+    String direction = (displayWidth > displayHeight) ? "landscape" : "portrait";
+    data = calibration.createNestedObject(direction);
+  }
+
+  // Open calibration file and exit on error
+  File calibrationFile = SPIFFS.open("/calibration.txt", "w");
+  if (!calibrationFile) {
+    if (debug) {
+      Serial.println("Cannot write to calibration file");
+    }
+    return false;
+  }
+
+  // Now, let's populate the data and write back to the file
+  data["dx"] = dx;
+  data["dy"] = dy;
+  data["ax"] = ax;
+  data["ay"] = ay;
+  serializeJson(calibration, calibrationFile);
+  if (debug) {
+    Serial.print("Calibration data updated: ");
+    serializeJson(calibration, Serial);
+    Serial.println("");
+  }
+  calibrationFile.close();
 }
 
 void TouchControllerWS::startCalibration(CalibrationCallback *calibrationCallback) {

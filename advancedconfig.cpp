@@ -1,4 +1,7 @@
 #include <simpleDSTadjust.h>
+#ifndef ADVANCEDCONFIG
+#define ADVANCEDCONFIG
+
 /***** Advanced Configuration *****/
   static struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};
   static struct dstRule EndRule = {"CET", Last, Sun, Oct, 2, 0};
@@ -10,3 +13,5 @@
   static const char* filename = "/config.txt";
   static bool debug = true;
 /***** Advanced Configuration *****/
+
+#endif

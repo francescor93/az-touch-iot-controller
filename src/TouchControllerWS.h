@@ -1,4 +1,5 @@
 #include <FS.h>
+#include <ArduinoJson.h>
 #include <XPT2046_Touchscreen.h>
 
 #ifndef _TOUCH_CONTROLLERWSH_
@@ -9,6 +10,7 @@ typedef void (*CalibrationCallback)(int16_t x, int16_t y);
 class TouchControllerWS {
   public:
     TouchControllerWS(XPT2046_Touchscreen *touchScreen);
+    int getCalibration(JsonObject &calibration);
     bool loadCalibration(int w, int h);
     bool saveCalibration();
     void startCalibration(CalibrationCallback *callback);
