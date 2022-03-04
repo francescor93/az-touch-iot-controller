@@ -580,20 +580,32 @@ void drawGrid() {
   int startX = 0;
   while (true) {
     startX = startX + config.screen.grid.cellWidth;
-    if (startX > config.screen.grid.width) {
+
+    // If new line is over the right border of the screen exit
+    if (startX > config.screen.width) {
       break;
     }
-    displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
+
+    // Draw a new line only if there's also room for another cell 
+    if (startX + config.screen.grid.cellWidth <= config.screen.width) {
+      displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
+    }
   }
 
   // Create the rows
   int startY = config.screen.headerHeight;
   while (true) {
     startY = startY + config.screen.grid.cellHeight;
-    if (startY > config.screen.grid.width) {
+
+    // If new line is over the bottom border of the screen exit
+    if (startY > config.screen.height) {
       break;
     }
-    displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
+
+    // Draw a new line only if there's also room for another cell 
+    if (startY + config.screen.grid.cellHeight <= config.screen.height) {
+      displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
+    }
   }
 }
 
