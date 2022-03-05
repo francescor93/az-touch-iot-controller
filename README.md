@@ -122,3 +122,7 @@ Each object contained in the array will contain the following properties:
 - **topic**: An object containing in turn the following properties:
   - **listRequest**: The topic that will be called when a device type is selected from the home screen. You must program your server so that upon receiving a publication on this topic it generates a list of all devices of that type (e.g. a list of all the sockets connected to the broker and their status).
   - **listResponse**: The topic in which the list of devices generated in the previous point will be published and to which this controller will have to subscribe to stay listening.
+
+## Known issues
+
+While saving calibration, on Wemos D1 Mini, the board will restart with a "Cannot write to calibration file" error. Despite this, writing will be successful and all data will be saved in the calibration file.

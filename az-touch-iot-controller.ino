@@ -127,9 +127,9 @@ void setup() {
   pinMode(TFT_LED, OUTPUT);
   lcdOn();
   displayInit(config.screen.width, config.screen.height);
-  displaySetRotation(config.screen.landscape ? 3 : 2);
+  displaySetRotation(config.screen.landscape ? 3 : 2, config.screen.width, config.screen.height);
   displayFill(config.screen.colors.mainBackground);
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   if (debug) {
     Serial.println("LCD initialized");
   }
@@ -217,17 +217,18 @@ void setup() {
   drawProgress(100, "Configuration loaded");
   file.close();
 
-  // Set the correct screen rotation
-  displaySetRotation(config.screen.landscape ? 3 : 2);
+  // Set the correct screen and touch rotation
+  displaySetRotation(config.screen.landscape ? 3 : 2, config.screen.width, config.screen.height);
+  ts.setRotation(config.screen.landscape ? 2 : 1);
 
-  WiFi.begin(config.wifi.ssid, config.wifi.password);
   // Start the wifi and call the wifi connection and MQTT connection function
+  WiFi.begin(config.wifi.ssid, config.wifi.password);
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
   client.setServer(config.mqtt.host, 1883);
   reconnect();
 
   // Load the touchscreen calibration
-  boolean isCalibrationAvailable = touchController.loadCalibration();
+  boolean isCalibrationAvailable = touchController.loadCalibration(config.screen.width, config.screen.height);
   if (!isCalibrationAvailable) {
     calibrateTouchScreen();
   }
@@ -304,7 +305,7 @@ void loop() {
   }
 
   // Write the created data on the screen
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
 
   // Add a small delay to allow the MQTT loop to run correctly
   delay(10);
@@ -340,10 +341,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Check if received topic is a list of devices
     if (isListTopic(topic)) {
 
-      // Search in the list of device types for the one with the topic corresponding to the one received 
+      // Search in the list of device types for the one with the topic corresponding to the one received
       for (int i = 0; i < config.iotList; i++) {
         if (strcmp(topic, config.iot[i].topic.listResponse) == 0) {
-          
+
           // Save each element of the array as a device in the appropriate struct
           int j = 0;
           for (JsonObject iotObj : json.as<JsonArray>()) {
@@ -370,8 +371,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // If it's not a devices list it's a statuses list
     else {
-      
-      // Search in the list of device types for the one with the topic corresponding to the one received 
+
+      // Search in the list of device types for the one with the topic corresponding to the one received
       for (int i = 0; i < config.iotList; i++) {
         MatchState ms;
         ms.Target (topic);
@@ -460,8 +461,8 @@ void calibrateTouchScreen() {
     displayAlignCenter();
     displaySetColor(1);
     displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
-    touchController.continueCalibration();
-    displayCommit(config.screen.width, config.screen.height);
+    touchController.continueCalibration(config.screen.width, config.screen.height);
+    displayCommit();
     yield();
   }
   touchController.saveCalibration();
@@ -473,33 +474,35 @@ void calibrationCallback(int16_t x, int16_t y) {
 // Function to show the loading screen, with the logo, a message provided and the progress bar
 void drawProgress(uint8_t percentage, String text) {
 
-  // Set the background and title font
+  // Set the background
   displayFill(config.screen.colors.mainBackground);
-  displayFontTitle();
-  displayAlignCenter();
 
   // Create the logo
-  displayDrawBitmap(mainLogo, 20, 5, 200, 80, config.screen.colors.secondaryForeground);
+  displayDrawBitmap(mainLogo, (config.screen.width / 2) - 100, 5, 200, 80, config.screen.colors.secondaryForeground);
 
   // Create the url
   displaySetColor(config.screen.colors.mainForeground);
-  displayWrite("https://www.regafamilysite.ga", 120, 85);
+  displayFontText();
+  displayAlignCenter();
+  displayWrite("www.francescorega.eu", config.screen.width / 2, 85);
 
   // Create the text provided
   displaySetColor(config.screen.colors.secondaryForeground);
-  displayWrite(text, 120, 146);
+  displayFontTitle();
+  displayAlignCenter();
+  displayWrite(text, config.screen.width / 2, 146);
 
   // Create the progress bar
-  displayDrawRect(10, 168, 240 - 20, 15, config.screen.colors.mainForeground);
-  displayFillRect(12, 170, 216 * percentage / 100, 11, config.screen.colors.secondaryForeground);
+  displayDrawRect(10, 168, config.screen.width - 20, 15, config.screen.colors.mainForeground);
+  displayFillRect(12, 170, (config.screen.width - 24) * percentage / 100, 11, config.screen.colors.secondaryForeground);
 
   // Write the result
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
 }
 
 // Function to show the confirmation screen
 void drawConfirmation(String text) {
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   #ifdef ESP32
     displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, 4);
   #endif
@@ -510,7 +513,7 @@ void drawConfirmation(String text) {
   displayFontTitle();
   displaySetColor(config.screen.colors.mainForeground);
   displayWrite(text, config.screen.grid.width / 2, config.screen.grid.height / 2 + config.screen.headerHeight);
-  displayCommit(config.screen.width, config.screen.height);
+  displayCommit();
   delay(1000);
   currentScreen = -1;
   currentPage = 1;
@@ -554,11 +557,11 @@ void drawHeader() {
   }
 
   // Create signal quality
-  displayWrite(String(quality) + "%", 205, 2);
+  displayWrite(String(quality) + "%", config.screen.width - 35, 2);
   for (int8_t i = 0; i < 4; i++) {
     for (int8_t j = 0; j < 2 * (i + 1); j++) {
       if (quality > i * 25 || j == 0) {
-        displayDrawPixel(230 + 2 * i, 11 - j, config.screen.colors.mainForeground);
+        displayDrawPixel((config.screen.width - 10) + 2 * i, 11 - j, config.screen.colors.mainForeground);
       }
     }
   }
@@ -577,29 +580,43 @@ void drawGrid() {
   int startX = 0;
   while (true) {
     startX = startX + config.screen.grid.cellWidth;
-    if (startX > config.screen.grid.width) {
+
+    // If new line is over the right border of the screen exit
+    if (startX > config.screen.width) {
       break;
     }
-    displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
+
+    // Draw a new line only if there's also room for another cell 
+    if (startX + config.screen.grid.cellWidth <= config.screen.width) {
+      displayDrawVLine(startX, config.screen.headerHeight, config.screen.grid.height, config.screen.colors.mainForeground);
+    }
   }
 
   // Create the rows
   int startY = config.screen.headerHeight;
   while (true) {
     startY = startY + config.screen.grid.cellHeight;
-    if (startY > config.screen.grid.width) {
+
+    // If new line is over the bottom border of the screen exit
+    if (startY > config.screen.height) {
       break;
     }
-    displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
+
+    // Draw a new line only if there's also room for another cell 
+    if (startY + config.screen.grid.cellHeight <= config.screen.height) {
+      displayDrawHLine(0, startY, config.screen.grid.width, config.screen.colors.mainForeground);
+    }
   }
 }
 
 // Function to get row and column starting from the cell number
 void cellToGrid(int cellNumber, int &row, int &col) {
   float r = (float)cellNumber / (float)config.screen.grid.cols;
-  r = r + 0.5;
-  row = (int)r;
-  col = cellNumber / row;
+  row = (int)ceil(r);
+  if (row < 1) { row = 1; }
+  if (row > config.screen.grid.rows) { row = config.screen.grid.rows; }
+  col = cellNumber % config.screen.grid.cols;
+  if (col == 0) { col = config.screen.grid.cols; }
 }
 
 // Function to get the position of an image in the image array starting from its name
@@ -839,43 +856,43 @@ void drawStatusScreen(int currentScreen) {
   }
   else {
     drawGrid();
-  
+
     // Calculate the maximum number of cells on a page
     int maxCells = config.screen.grid.rows * config.screen.grid.cols;
-  
+
     // Check if pagination is required
     bool needsPagination = currentStatuses.statusList > maxCells;
-  
+
     // Define the variable for the cell we are currently updating
     int currentCell = 1;
-  
+
     // If pagination is required and the current page is not the first one, show the "Back" icon in the first cell and decrease the maximum number of cells that can be used
     if ((needsPagination) && (currentPage > 1)) {
       updateCell(currentCell, getImageIndex("back"));
       maxCells--;
       currentCell++;
     }
-  
+
     // Determine which status to view from
     int minStatus = maxCells * (currentPage - 1);
     if (currentPage > 2) { minStatus--; }
-  
+
     // Calculate the lesser of the total number of received statuses and the total number of displayable cells
     int limit = min(currentStatuses.statusList, maxCells);
-  
+
     // For each status received
     for (int i = 0; i < limit; i++) {
-  
+
       // Look for the device image
       int imgIndex = -1;
       imgIndex = getImageIndex(config.iot[currentScreen - 100].icon);
-  
+
       // If this is the last cell on the page and there are subsequent statuses, show the "Next" icon
       if ((i == (limit - 1)) && (minStatus < (currentStatuses.statusList - 1))) {
         updateCell(currentCell, getImageIndex("next"));
       }
       else {
-        
+
         // If an image is available show it together with the name, otherwise show only the center-aligned name
         if (imgIndex > -1) {
           updateCell(currentCell, imgIndex);
@@ -885,7 +902,7 @@ void drawStatusScreen(int currentScreen) {
           updateCell(currentCell, String(currentStatuses.status[minStatus].name));
         }
       }
-  
+
       // Increment the current cell number and the current status number
       currentCell++;
       minStatus++;
@@ -984,7 +1001,7 @@ void executeCellAction(int cellNumber) {
       }
     }
   }
-  
+
   // If current screen is one of the devices lists, send the status request on the topic associated with the cell, show loading screen and print a message if debug is true
   if ((currentScreen >= 0) && (currentScreen < 100)) {
     if (currentElement > currentDevices.iotList) {
