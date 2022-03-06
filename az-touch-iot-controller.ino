@@ -49,10 +49,6 @@
   #define SD_CS D0
 #endif
 
-// Initialize the variables for the device
-const char* DEVICE = "TouchController";
-const char* DELIMITER = "/";
-
 // Define the appearance of the screen
 #define HAVE_TOUCHPAD
 

@@ -11,6 +11,8 @@
   static const int maxDeviceTypes = 8;
   static const int maxDeviceStatuses = 8;
   static const char* filename = "/config.txt";
+  static const char* DEVICE = "TouchController";
+  static const char* DELIMITER = "/";
   static bool debug = true;
 /***** Advanced Configuration *****/
 
