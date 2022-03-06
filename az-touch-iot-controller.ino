@@ -548,7 +548,9 @@ void calibrateTouchScreen() {
     displayFill(0);
     displayAlignCenter();
     displaySetColor(1);
-    displayWrite("Please calibrate\ntouch screen by\ntouch point", 120, 160);
+    displayWrite("Please calibrate", config.screen.width / 2, config.screen.height / 2 - 20);
+    displayWrite("touch screen by", config.screen.width / 2, config.screen.height / 2);
+    displayWrite("touch point", config.screen.width / 2, config.screen.height / 2 + 20);
     touchController.continueCalibration(config.screen.width, config.screen.height);
     displayCommit();
     yield();
