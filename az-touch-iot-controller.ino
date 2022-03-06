@@ -469,6 +469,12 @@ void callback(char* topic, byte* bytePayload, unsigned int length) {
         updated = true;
       }
 
+      // Or delete the calibration file
+      else if (strcmp(prop, "deleteCalibration") == 0) {
+        SPIFFS.remove("/calibration.txt");
+        updated = true;
+      }
+
       if (updated) {
 
         // Write back json to file
