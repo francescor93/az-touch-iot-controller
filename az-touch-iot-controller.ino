@@ -90,11 +90,13 @@ struct Statuses {
 Statuses currentStatuses;
 
 // This line is needed to avoid the compile error for callback function not (yet) defined
-extern void callback(char* topic, byte* payload, unsigned int length);
+extern void callback(char* topic, byte* bytePayload, unsigned int length);
 
-// Create a wifi client and bind the MQTT client
+// Create a wifi client, bind the MQTT client and initialize configuration topic var
 WiFiClient wifiClient;
 PubSubClient client("127.0.0.1", 1883, callback, wifiClient); // Using a fake address, because configuration hasn't loaded yet
+char configTopic[sizeof(DELIMITER) + sizeof(DEVICE) + sizeof(DELIMITER) + sizeof(config.device.id) + sizeof(DELIMITER) + sizeof("Config") + sizeof(DELIMITER) + sizeof("%s") + 3];
+
 
 // Initialize touch detection and its calibration
 XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
@@ -225,6 +227,7 @@ void setup() {
   WiFi.begin(config.wifi.ssid, config.wifi.password);
   WiFi.config(config.wifi.ip, config.wifi.gateway, config.wifi.subnet, config.wifi.dns);
   client.setServer(config.mqtt.host, 1883);
+  strcpy(configTopic, DELIMITER); strcat(configTopic, DEVICE); strcat(configTopic, DELIMITER); strcat(configTopic, config.device.id); strcat(configTopic, DELIMITER); strcat(configTopic, "Config"); strcat(configTopic, DELIMITER); strcat(configTopic, "%s");
   reconnect();
 
   // Load the touchscreen calibration
@@ -312,15 +315,19 @@ void loop() {
 }
 
 // Callback function executed whenever an MQTT message is received
-void callback(char* topic, byte* payload, unsigned int length) {
+void callback(char* topic, byte* bytePayload, unsigned int length) {
+
+  // Fix payload
+  char* payload = (char*)bytePayload;
+  payload[length] = '\0';
 
   // Print a message if debug is true
   if (debug) {
     Serial.print("Received command: "); Serial.println(topic);
-    Serial.print("With payload: "); Serial.println((char*)payload);
+    Serial.print("With payload: "); Serial.println(payload);
   }
 
-  // Only proceed if on a loading screen
+  // Proceed if on a loading screen
   if (currentScreen == -2) {
 
     // Set the home screen as a default result
@@ -329,7 +336,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // Convert the received string to an array or return to home in case of error
     DynamicJsonDocument json(mqttSize);
-    DeserializationError error = deserializeJson(json, (char*)payload);
+    DeserializationError error = deserializeJson(json, payload);
     if (error) {
       if (debug) {
         Serial.print("Error during MQTT deserialization: ");
@@ -409,6 +416,87 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // Update the last touch time
     lastTouch = millis();
+  }
+
+  // Also proceed if message is on a configuration topic
+  else {
+    MatchState ms;
+    ms.Target (topic);
+    char match[64];
+    sprintf(match, configTopic, ".*");
+    char result = ms.Match (match);
+    if (result == REGEXP_MATCHED) {
+
+      // Get the property to be updated
+      char *p;
+      char *prop;
+      p = strtok(topic, DELIMITER);
+      while (p != NULL) {
+        prop = p;
+        p = strtok(NULL, DELIMITER);
+      }
+
+      // Read the content of the configuration file
+      DynamicJsonDocument configJson(configSize);
+      File temp = SPIFFS.open("/config.txt", "r");
+      deserializeJson(configJson, temp);
+      temp.close();
+
+      // Update the right json property
+      bool updated = false;
+      if (strcmp(prop, "landscape") == 0) {
+        configJson["screen"]["landscape"] = strcmp(payload, "true") == 0;
+        updated = true;
+      }
+      else if (strcmp(prop, "darkMode") == 0) {
+        configJson["screen"]["darkMode"] = strcmp(payload, "true") == 0;
+        updated = true;
+      }
+      else if (strcmp(prop, "maxColsLandscape") == 0) {
+        configJson["screen"]["maxColsLandscape"] = atoi(payload);
+        updated = true;
+      }
+      else if (strcmp(prop, "maxRowsLandscape") == 0) {
+        configJson["screen"]["maxRowsLandscape"] = atoi(payload);
+        updated = true;
+      }
+      else if (strcmp(prop, "iconsSize") == 0) {
+        configJson["screen"]["iconsSize"] = atoi(payload);
+        updated = true;
+      }
+      else if (strcmp(prop, "timeout") == 0) {
+        configJson["screen"]["timeout"] = atoi(payload);
+        updated = true;
+      }
+      else if (strcmp(prop, "headerHeight") == 0) {
+        configJson["screen"]["headerHeight"] = atoi(payload);
+        updated = true;
+      }
+
+      if (updated) {
+
+        // Write back json to file
+        File configFile = SPIFFS.open("/config.txt", "w");
+        serializeJson(configJson, configFile);
+        configFile.close();
+
+        // Publish confirmation
+        char responseTopic[64];
+        sprintf(responseTopic, configTopic, "");
+        responseTopic[strlen(responseTopic) - 1] = '\0';
+        client.publish(responseTopic, "success");
+        client.loop();
+        delay(10);
+  
+        // Print a message if in debug mode
+        if (debug) {
+          Serial.println("Configuration updated");
+        }
+  
+        // Restart the board to load new configuration
+        ESP.restart();
+      }
+    }
   }
 }
 
@@ -1082,6 +1170,11 @@ void reconnect() {
           sprintf(topic, templateTopic, "+");
           client.subscribe(topic);
         }
+
+        // Subscribe for configuration topic(s)
+        char topic[64];
+        sprintf(topic, configTopic, "+");
+        client.subscribe(topic);
 
         // Increase buffer size
         client.setBufferSize(mqttSize);
