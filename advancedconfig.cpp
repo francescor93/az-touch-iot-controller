@@ -13,7 +13,7 @@
   static const char* filename = "/config.txt";
   static const char* DEVICE = "TouchController";
   static const char* DELIMITER = "/";
-  static bool debug = true;
+  static bool debug = false;
 /***** Advanced Configuration *****/
 
 #endif
