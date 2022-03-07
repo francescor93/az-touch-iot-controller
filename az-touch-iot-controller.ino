@@ -663,9 +663,6 @@ void drawHeader() {
 void drawGrid() {
 
   // Create the separator between header and table
-  #ifdef ESP32
-    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
-  #endif
   displayDrawHLine(0, config.screen.headerHeight, config.screen.grid.width, config.screen.colors.mainForeground);
 
   // Create the columns
@@ -793,6 +790,9 @@ void updateCell(int cellNumber, char* color) {
 
 // Function to show the main screen with the grid and icons of the different cells
 void drawHome() {
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
   drawGrid();
 
   // Calculate the maximum number of cells on a page
@@ -849,7 +849,10 @@ void drawHome() {
 }
 
 void drawIotScreen(int currentScreen) {
-  drawGrid();
+  // Clean screen
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
 
   // Calculate the maximum number of cells on a page
   int maxCells = config.screen.grid.rows * config.screen.grid.cols;
@@ -911,9 +914,17 @@ void drawIotScreen(int currentScreen) {
     currentCell++;
     minIot++;
   }
+
+  // Finally, draw grid lines
+  drawGrid();
 }
 
 void drawStatusScreen(int currentScreen) {
+
+  // Clean screen
+  #ifdef ESP32
+    displayFillRect(0, config.screen.headerHeight, config.screen.grid.width, config.screen.grid.height, config.screen.colors.mainBackground);
+  #endif
 
   // Check if having only one status and it has no topic
   if ((currentStatuses.statusList == 1) && (strcmp(currentStatuses.status[0].topic, "") == 0)) {
@@ -947,7 +958,6 @@ void drawStatusScreen(int currentScreen) {
     }
   }
   else {
-    drawGrid();
 
     // Calculate the maximum number of cells on a page
     int maxCells = config.screen.grid.rows * config.screen.grid.cols;
@@ -999,6 +1009,9 @@ void drawStatusScreen(int currentScreen) {
       currentCell++;
       minStatus++;
     }
+
+    // Finally, draw grid lines
+    drawGrid();
   }
 }
 
