@@ -1,6 +1,6 @@
 # AZ-Touch IoT Controller
 
-This project allows you to create a controller for IoT devices using the AZ-Delivery ArduiTouch kit ([buy it here](https://www.az-delivery.de/en/products/az-touch-wandgehauseset-mit-touchscreen-fur-esp8266-und-esp32)) using one of the supported boards ([here](https://www.az-delivery.de/en/products/d1-mini) or [here](https://www.az-delivery.de/en/products/esp32-developmentboard)).
+This project allows you to create a controller for IoT devices using the AZ-Delivery AZ-Touch kit ([buy it here](https://www.az-delivery.de/en/products/az-touch-wandgehauseset-mit-touchscreen-fur-esp8266-und-esp32)) using one of the supported boards ([here](https://www.az-delivery.de/en/products/d1-mini) or [here](https://www.az-delivery.de/en/products/esp32-developmentboard)).
 
 ## Main features
 
@@ -18,7 +18,7 @@ This project allows you to create a controller for IoT devices using the AZ-Deli
 
 ### Necessary tools
 
-- AZ-Delivery ArduiTouch (<https://www.az-delivery.de/en/products/az-touch-wandgehauseset-mit-touchscreen-fur-esp8266-und-esp32>) kit
+- AZ-Delivery AZ-Touch (<https://www.az-delivery.de/en/products/az-touch-wandgehauseset-mit-touchscreen-fur-esp8266-und-esp32>) kit
 - Wemos D1 Mini (<https://www.az-delivery.de/en/products/d1-mini>) or ESP32 Dev Kit C (<https://www.az-delivery.de/en/products/esp32-developmentboard>) board
 - An empty SD card (or micro SD with adapter) with a maximum size of 2 GB
 - Arduino IDE
@@ -310,7 +310,7 @@ If you want more practical information you can also take a look at the examples,
 
 ## Case
 
-The *ArduiTouch kit* case perfectly contains its PCB, display and your board; despite this, due to its size, the SD card sticks out from the container. For this reason, this code is designed to need the SD card only at the first configuration. If you still want to keep the card inserted, you'll need to manually make a change to the container, as explained in this post: <https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/arduitouch-4-nutzung-des-card-reader>.  
+The *AZ-Touch kit* case perfectly contains its PCB, display and your board; despite this, due to its size, the SD card sticks out from the container. For this reason, this code is designed to need the SD card only at the first configuration. If you still want to keep the card inserted, you'll need to manually make a change to the container, as explained in this post: <https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/arduitouch-4-nutzung-des-card-reader>.  
 Please note that I'm not responsible for malfunctions due to this operation.
 
 ## Known issues
@@ -330,5 +330,7 @@ If you want to contribute to the project, you're welcome: open an issue explaini
 Please note that this code is provided "as is", and it's not guaranteed to be bug free - I do my best to keep it up to date in my spare time.
 
 Except for the **TouchControllerWs** files, which have been modified from those available in the *ThingPulse* *esp8266-weather-station-color* project, and for the **User_Setup** file from the *TFT_eSPI* library, the code for this repository is made by me and is distributed under the *MIT* license.
+
+Finally, also note that I created this code in a personal capacity and I'm no way affiliated with AZ-Delivery.
 
 Thanks for taking an interest in **AZ-Touch IoT Controller**!
