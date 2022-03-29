@@ -1,6 +1,6 @@
 # Operation example
 
-As stated in the README file, this sketch is designed to be highly customizable and thus adapt to your needs and your network infrastructure.  
+As stated in the [README](https://github.com/francescor93/az-touch-iot-controller/blob/main/README.md) file, this sketch is designed to be highly customizable and thus adapt to your needs and your network infrastructure.  
 Following is an example of my setup, to help you understand how it can be used and configured.
 
 ## What do I use
