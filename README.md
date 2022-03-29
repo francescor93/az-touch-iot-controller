@@ -71,9 +71,10 @@ Finally, mount the TFT screen over its headers and tighten the screws: your hard
 
 ### Main configuration
 
-The main configuration is done via a json file. Copy the *config.sample.json* file available in this repository, save it to an SD card and rename it to *config.txt*; now change the parameters contained in it according to your needs.
+The main configuration is done via a json file. Copy the *config.sample.json* file available in this repository, save it to an SD card and rename it to *config.txt*; now change the parameters contained in it according to your needs.  
+You can also use the generator at https://apps.francescorega.eu/aztouch, filling in the corresponding fields and saving the returned code.
 
-The file consists of five main sections:
+The configuration file consists of five main sections:
 
 #### Wifi
 
@@ -306,7 +307,7 @@ In any screen, after a period of inactivity (set as **screen > timeout** in the 
 
 Please note: this is just an explanation of how this device works and what data it expects. How to set up your listening client depends on your needs and is beyond the scope of this guide; just make sure the returned data is in the correct format.
 
-If you want more practical information you can also take a look at the examples, where available.
+If you want more practical information you can also take a look at the [examples](https://github.com/francescor93/az-touch-iot-controller/blob/main/doc/example.md), where available.
 
 ## Case
 
